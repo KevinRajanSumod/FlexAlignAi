@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlexAlign AI — Dual-Mode Posture & Range of Motion Analyzer</title>
+  <meta name="description" content="FlexAlign AI is a clinical & athletic grade exercise posture and Range-of-Motion (ROM) analyzer powered by MediaPipe Pose, real-time vector trigonometry, dynamic visual telemetry, and dual Gym / Physical Therapy intelligence.">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Modular CSS Component Stylesheets -->
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/header.css">
+  <link rel="stylesheet" href="./css/viewport.css">
+  <link rel="stylesheet" href="./css/dashboard.css">
+
+  <!-- Three.js Import Map (ES Module — works with type="module" scripts) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <!-- MediaPipe Pose CDN Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Top Navigation & Prominent Dual-Mode Switcher -->
+    <header class="top-bar">
+      <div class="brand-section">
+        <div class="brand-logo">📐</div>
+        <div class="brand-title-wrap">
+          <h1>FlexAlign AI</h1>
+          <div class="brand-tagline">Dual-Mode Posture & Range-of-Motion (ROM) Telemetry</div>
+        </div>
+      </div>
+
+      <!-- Prominent Dual Mode Selector -->
+      <div class="mode-selector-container" role="radiogroup" aria-label="Mode Selector">
+        <button id="gymModeBtn" class="mode-btn active gym-mode" onclick="window.app.setMode('gym')">
+          <span>🏋️</span> Fitness / Gym Mode
+        </button>
+        <button id="ptModeBtn" class="mode-btn pt-mode" onclick="window.app.setMode('pt')">
+          <span>🩺</span> Physical Therapy Mode
+        </button>
+      </div>
+
+      <!-- Quick Audio & Voice Feedback Toggles -->
+      <div class="top-controls">
+        <button id="soundToggleBtn" class="icon-toggle-btn active" onclick="window.app.toggleSound()" title="Toggle Web Audio Synths">
+          <span id="soundIcon">🔊</span> Audio FX
+        </button>
+        <button id="voiceToggleBtn" class="icon-toggle-btn active" onclick="window.app.toggleVoice()" title="Toggle Spoken Guidance">
+          <span id="voiceIcon">🗣️</span> Voice Coach
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Telemetry Grid -->
+    <main class="main-grid">
+
+      <!-- Left / Center Viewport & Visual Telemetry HUD -->
+      <section class="viewport-card">
+        <div class="viewport-header">
+          <div class="exercise-selector-wrap">
+            <label for="exerciseSelect">Exercise:</label>
+            <select id="exerciseSelect" class="exercise-select" onchange="window.app.setExercise(this.value)">
+              <option value="squat">🏋️ Bodyweight Squat (Lower Body / Mobility)</option>
+              <option value="curl">💪 Bicep Curl (Upper Body / Strength)</option>
+              <option value="raise">🦅 Shoulder Lateral Raise (Rehab / Mobility)</option>
+            </select>
+          </div>
+
+          <!-- Side Tracking Controls -->
+          <div class="side-selector-wrap" title="Select limb side to analyze">
+            <span style="font-size: 0.72rem; color: var(--text-dim); padding-left: 4px; font-weight: 700;">SIDE:</span>
+            <button id="sideAuto" class="side-chip active" onclick="window.app.setSide('auto')">Auto</button>
+            <button id="sideLeft" class="side-chip" onclick="window.app.setSide('left')">Left</button>
+            <button id="sideRight" class="side-chip" onclick="window.app.setSide('right')">Right</button>
+          </div>
+        </div>
+
+        <!-- Canvas Video Viewport -->
+        <div class="canvas-viewport" id="viewportContainer">
+          <!-- Raw Video Element -->
+          <video id="webcamVideo" playsinline muted></video>
+          <!-- HUD & Landmark Drawing Canvas (2D skeleton overlay) -->
+          <canvas id="outputCanvas"></canvas>
+          <!-- 3D WebGL Avatar Canvas (shown only in simulation mode) -->
+          <canvas id="avatarCanvas3D" title="3D Avatar — Click & Drag to Rotate"></canvas>
+
+          <!-- Cyberpunk / Clinical HUD Reticles -->
+          <div class="hud-corner hud-tl"></div>
+          <div class="hud-corner hud-tr"></div>
+          <div class="hud-corner hud-bl"></div>
+          <div class="hud-corner hud-br"></div>
+
+          <!-- HUD Header Status -->
+          <div class="hud-status-bar">
+            <div class="hud-badge">
+              <div id="hudLiveDot" class="hud-live-dot"></div>
+              <span id="hudTrackingText">SYSTEM STANDBY</span>
+            </div>
+            <div class="hud-badge" id="hudActiveJointBadge">
+              JOINT: KNEE (HIP-KNEE-ANKLE)
+            </div>
+          </div>
+
+          <!-- On-screen Live Guidance Notification Banner -->
+          <div id="hudGuidanceBanner" class="hud-guidance-banner optimal">
+            <span id="hudGuidanceIcon">✨</span>
+            <span id="hudGuidanceText">Ready to start tracking</span>
+          </div>
+
+          <!-- Welcome & Demo Launcher Splash (Shown when camera is inactive) -->
+          <div id="viewportSplash" class="viewport-splash">
+            <div class="splash-icon">🔬</div>
+            <h2 class="splash-title">Ready for Biomechanical Analysis</h2>
+            <p class="splash-desc">
+              Start your webcam for real-time skeletal telemetry, upload a video file for inspection, or launch the interactive biomechanical simulation.
+            </p>
+            <div class="splash-cta-row">
+              <button class="btn btn-primary" onclick="window.app.startCamera()">
+                📷 Start Camera
+              </button>
+              <label class="btn btn-secondary file-input-label">
+                📁 Upload Video
+                <input type="file" id="videoFileInput" accept="video/*" onchange="window.app.handleVideoUpload(event)">
+              </label>
+              <button class="btn btn-demo" onclick="window.app.startSimulation()">
+                🎮 Run Simulation Demo
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Controls Toolbar -->
+        <div class="viewport-controls-toolbar">
+          <div class="controls-btn-group">
+            <button id="startCamBtn" class="btn btn-primary" onclick="window.app.startCamera()">
+              📷 Start Camera
+            </button>
+            <button id="stopCamBtn" class="btn btn-danger" onclick="window.app.stopStreams()" style="display: none;">
+              ⏹️ Stop Camera
+            </button>
+            <label class="btn btn-secondary file-input-label">
+              📁 Upload Video
+              <input type="file" id="videoFileInputToolbar" accept="video/*" onchange="window.app.handleVideoUpload(event)">
+            </label>
+            <button id="simBtn" class="btn btn-demo" onclick="window.app.toggleSimulation()">
+              🎮 Sim Demo
+            </button>
+          </div>
+
+          <div class="controls-btn-group">
+            <button class="btn btn-secondary" onclick="window.app.resetSession()" title="Reset rep count and stats">
+              🔄 Reset Session
+            </button>
+            <button class="btn btn-secondary" onclick="window.app.exportData()" title="Export session history to JSON">
+              📥 Export Data
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Stage: Live Analytics Dashboard Panel -->
+      <aside class="dashboard-panel">
+
+        <!-- Real-Time Joint Angle Display & Dial -->
+        <div class="card">
+          <div class="card-title">
+            <span>Real-Time Angle Telemetry</span>
+            <span id="activeSideBadge" style="color: var(--primary); font-family: var(--font-mono);">AUTO (RIGHT)</span>
+          </div>
+          <div class="angle-hero-section">
+            <div class="angle-readout-box">
+              <div class="angle-label" id="activeJointName">Knee Joint Flexion</div>
+              <div class="angle-number" id="liveAngleValue">--°</div>
+              <div class="angle-subtext" id="angleSubtext">Vector BA · BC exact trigonometric computation</div>
+            </div>
+            <div class="angle-dial-wrap">
+              <svg class="angle-svg-dial" viewBox="0 0 100 100">
+                <circle class="dial-bg" cx="50" cy="50" r="45"></circle>
+                <circle id="dialProgressBar" class="dial-bar" cx="50" cy="50" r="45"></circle>
+              </svg>
+              <div class="dial-center-icon" id="dialCenterIcon">📐</div>
+            </div>
+          </div>
+
+          <!-- Dynamic Form Compliance Score Bar -->
+          <div class="compliance-container">
+            <div class="compliance-header">
+              <span style="color: var(--text-muted);">Real-Time Form Compliance</span>
+              <span id="complianceScoreText" style="color: var(--optimal); font-family: var(--font-mono);">100%</span>
+            </div>
+            <div class="compliance-track">
+              <div id="complianceFillBar" class="compliance-fill" style="width: 100%;"></div>
+            </div>
+          </div>
+
+          <!-- Four-Metric Primary Grid -->
+          <div class="stats-metrics-grid">
+            <div class="stat-metric-card">
+              <span class="stat-metric-title">Completed Reps</span>
+              <span class="stat-metric-val" id="repCountVal" style="color: #fff;">0</span>
+              <span class="stat-metric-footer" id="repTargetFooter">Cycle: Stand ➔ Depth</span>
+            </div>
+            <div class="stat-metric-card">
+              <span class="stat-metric-title">Peak ROM Reached</span>
+              <span class="stat-metric-val" id="peakRomVal" style="color: var(--primary);">0°</span>
+              <span class="stat-metric-footer" id="peakRomFooter">Max joint excursion</span>
+            </div>
+            <div class="stat-metric-card">
+              <span class="stat-metric-title" id="secondaryMetricTitle">Cadence / Tempo</span>
+              <span class="stat-metric-val" id="secondaryMetricVal" style="color: var(--warning);">--</span>
+              <span class="stat-metric-footer" id="secondaryMetricFooter">Secs per repetition</span>
+            </div>
+            <div class="stat-metric-card">
+              <span class="stat-metric-title" id="faultCountTitle">Form Faults</span>
+              <span class="stat-metric-val" id="faultCountVal" style="color: var(--fault);">0</span>
+              <span class="stat-metric-footer" id="faultCountFooter">Form alerts flagged</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode-Specific Clinical Guidance / Gym Strictness Card -->
+        <div class="card mode-custom-card gym-mode-theme" id="modeConfigCard">
+          <div class="card-title">
+            <span id="modeCardTitle">Gym Mode Standards & Strict Form Criteria</span>
+            <span id="modeBadgePill" class="status-pill pass">FORM STRICT</span>
+          </div>
+
+          <!-- Therapy Mode Target Controls -->
+          <div id="ptControlsSection" style="display: none;">
+            <div class="threshold-slider-group">
+              <div class="slider-label-row">
+                <span style="color: var(--text-muted);" id="thresholdSliderLabel">Safe Flexion Limit (ACL Rehab):</span>
+                <span class="threshold-val-badge" id="thresholdDisplayBadge">100°</span>
+              </div>
+              <input type="range" id="safeRomSlider" class="range-slider" min="70" max="120" value="100" oninput="window.app.updateSafeThreshold(this.value)">
+              <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-dim);">
+                <span>60° (Conservative)</span>
+                <span>100° (Post-Op ACL)</span>
+                <span>140° (Full)</span>
+              </div>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; line-height: 1.4;">
+              <span id="ptClinicalTip">💡 <strong>Squat Rehab:</strong> Maintain knee alignment over toes. Alerts trigger if flexion exceeds safe threshold to prevent graft strain.</span>
+            </div>
+          </div>
+
+          <!-- Gym Mode Controls -->
+          <div id="gymControlsSection">
+            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem;">
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Required Depth Criterion:</span>
+                <span style="color: var(--optimal); font-weight: 700; font-family: var(--font-mono);" id="gymDepthCriterion">≤ 90° (Parallel/Below)</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Lockout Threshold:</span>
+                <span style="color: var(--primary); font-weight: 700; font-family: var(--font-mono);" id="gymLockoutCriterion">> 160° (Full Extension)</span>
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
+                ⚡ <strong>Gym Standards:</strong> Partial reps will not register. Excessive trunk tilt or elbow displacement triggers immediate posture fault alerts.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Real-Time Waveform Line Chart -->
+        <div class="card chart-card">
+          <div class="card-title">
+            <span>Live Angle Waveform (ROM Over Time)</span>
+            <span style="font-size: 0.72rem; color: var(--text-dim); font-family: var(--font-mono);">60 FPS</span>
+          </div>
+          <div class="waveform-chart-wrap">
+            <canvas id="angleChartCanvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Repetition & Fault Log -->
+        <div class="card history-card">
+          <div class="card-title">
+            <span>Session Repetition Log</span>
+            <span id="historyCountBadge" style="font-size: 0.72rem; color: var(--text-muted);">0 Records</span>
+          </div>
+          <div class="table-container">
+            <table class="rep-history-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Exercise</th>
+                  <th>Peak ROM</th>
+                  <th>Duration</th>
+                  <th>Form Status</th>
+                </tr>
+              </thead>
+              <tbody id="repHistoryBody">
+                <tr id="emptyHistoryRow">
+                  <td colspan="5" style="text-align: center; color: var(--text-dim); padding: 20px;">
+                    No repetitions logged yet. Perform reps to view analytics.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </aside>
+
+    </main>
+
+    <!-- Clinical / Biomechanical Legend Footer -->
+    <footer class="clinical-legend">
+      <div class="legend-item">
+        <div class="legend-dot green"></div>
+        <span>Optimal Posture / Safe Prescribed ROM</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot red"></div>
+        <span>Posture Fault / Safe Limit Exceeded</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot cyan"></div>
+        <span>Active Joint Angle Badge</span>
+      </div>
+      <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-dim);">
+        Trigonometry Engine: Vector Dot-Product Formula <code>acos((BA·BC)/(|BA|*|BC|)) * (180/π)</code>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Toast Notification System -->
+  <div id="toastBanner" class="toast-banner">
+    <span id="toastIcon">ℹ️</span>
+    <span id="toastMsg">Notification message</span>
+  </div>
+
+  <!-- Modular Application Entry Point -->
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
