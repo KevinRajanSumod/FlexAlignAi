@@ -76,8 +76,8 @@ export class Avatar3DRenderer {
     const w = (parent ? parent.clientWidth : 0) || canvasEl.clientWidth || 1280;
     const h = (parent ? parent.clientHeight : 0) || canvasEl.clientHeight || 720;
     this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
-    this.camera.position.set(0, 0.12, 4.2);
-    this.camera.lookAt(0, -0.08, 0);
+    this.camera.position.set(0, 0.06, 4.5);
+    this.camera.lookAt(0, -0.06, 0);
 
     // ── Renderer ──
     this.renderer = new THREE.WebGLRenderer({
@@ -108,10 +108,10 @@ export class Avatar3DRenderer {
     this.controls = new OrbitControls(this.camera, canvasEl);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
-    this.controls.minDistance = 1.2;
-    this.controls.maxDistance = 10.0;
+    this.controls.minDistance = 1.4;
+    this.controls.maxDistance = 12.0;
     this.controls.maxPolarAngle = Math.PI * 0.92;
-    this.controls.target.set(0, -0.08, 0);
+    this.controls.target.set(0, -0.06, 0);
 
     // FULL INTERACTION CAPABILITIES:
     this.controls.enableRotate = true;
@@ -198,7 +198,7 @@ export class Avatar3DRenderer {
     });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -1.82;
+    ground.position.y = -1.22;
     ground.receiveShadow = true;
     this.scene.add(ground);
 
@@ -212,13 +212,13 @@ export class Avatar3DRenderer {
     });
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = -1.815;
+    ring.position.y = -1.215;
     this.scene.add(ring);
     this.groundShadow = ring;
 
     // Subtle Precision Floor Grid
     this.gridHelper = new THREE.GridHelper(7.2, 24, 0x38bdf8, 0x182645);
-    this.gridHelper.position.y = -1.818;
+    this.gridHelper.position.y = -1.218;
     this.gridHelper.material.transparent = true;
     this.gridHelper.material.opacity = 0.22;
     this.scene.add(this.gridHelper);
@@ -429,13 +429,13 @@ export class Avatar3DRenderer {
     this.avatarRoot.add(headGroup);
 
     // 2. CERVICAL NECK (Muscular with Trapezius Blend)
-    const neckGeo = new THREE.CylinderGeometry(0.075, 0.092, 1.0, 20);
+    const neckGeo = new THREE.CylinderGeometry(0.088, 0.108, 1.0, 20);
     this.segments.neck = new THREE.Mesh(neckGeo, this._skinMaterial());
     this.segments.neck.castShadow = true;
     this.avatarRoot.add(this.segments.neck);
 
     // 3. SHOULDER GIRDLE / CLAVICLE & TRAPEZIUS
-    const collarGeo = new THREE.CylinderGeometry(0.068, 0.076, 1.0, 18);
+    const collarGeo = new THREE.CylinderGeometry(0.078, 0.088, 1.0, 18);
     this.segments.collar = new THREE.Mesh(collarGeo, this._clothingMaterial(0x1b253c));
     this.segments.collar.castShadow = true;
     this.avatarRoot.add(this.segments.collar);
@@ -443,28 +443,28 @@ export class Avatar3DRenderer {
     // 4. ATHLETIC TORSO (Sculpted Pectorals, Core Taper, Pelvis)
     // Upper Thoracic Chest with Pectoral Arch
     const chestGroup = new THREE.Group();
-    const chestCoreGeo = new THREE.CylinderGeometry(0.205, 0.18, 1.0, 20);
+    const chestCoreGeo = new THREE.CylinderGeometry(0.235, 0.198, 1.0, 22);
     const chestCore = new THREE.Mesh(chestCoreGeo, this._clothingMaterial(0x192236));
-    chestCore.scale.set(1.22, 1.0, 0.76); // Broad athletic chest taper
+    chestCore.scale.set(1.28, 1.0, 0.82); // Broad athletic chest taper
     chestCore.castShadow = true;
     chestGroup.add(chestCore);
 
     // Left & Right Sculpted Pectoral Plates
-    const pecGeo = new THREE.BoxGeometry(0.14, 0.42, 0.07);
+    const pecGeo = new THREE.BoxGeometry(0.16, 0.44, 0.09);
     const pecMat = this._clothingMaterial(0x212b44);
     const pecL = new THREE.Mesh(pecGeo, pecMat);
-    pecL.position.set(-0.09, 0.06, 0.10);
+    pecL.position.set(-0.10, 0.06, 0.11);
     pecL.rotation.y = 0.12;
     chestGroup.add(pecL);
     const pecR = new THREE.Mesh(pecGeo, pecMat);
-    pecR.position.set(0.09, 0.06, 0.10);
+    pecR.position.set(0.10, 0.06, 0.11);
     pecR.rotation.y = -0.12;
     chestGroup.add(pecR);
 
     // Kinetic Seam Accent
     const seamGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.7, 8);
     const seam = new THREE.Mesh(seamGeo, this._accentMaterial(0x38bdf8));
-    seam.position.set(0, 0.02, 0.135);
+    seam.position.set(0, 0.02, 0.14);
     chestGroup.add(seam);
 
     this.segments.chest = chestGroup;
@@ -472,9 +472,9 @@ export class Avatar3DRenderer {
 
     // Athletic Abdomen (V-taper, core musculature)
     const abdomenGroup = new THREE.Group();
-    const abCoreGeo = new THREE.CylinderGeometry(0.178, 0.162, 1.0, 20);
+    const abCoreGeo = new THREE.CylinderGeometry(0.198, 0.178, 1.0, 20);
     const abCore = new THREE.Mesh(abCoreGeo, this._clothingMaterial(0x161e30));
-    abCore.scale.set(1.12, 1.0, 0.74);
+    abCore.scale.set(1.18, 1.0, 0.78);
     abCore.castShadow = true;
     abdomenGroup.add(abCore);
     this.segments.abdomen = abdomenGroup;
@@ -482,9 +482,9 @@ export class Avatar3DRenderer {
 
     // Pelvic Base (Muscular glutes & hip girdle)
     const pelvisGroup = new THREE.Group();
-    const pelvisCoreGeo = new THREE.CylinderGeometry(0.168, 0.155, 1.0, 20);
+    const pelvisCoreGeo = new THREE.CylinderGeometry(0.188, 0.172, 1.0, 20);
     const pelvisCore = new THREE.Mesh(pelvisCoreGeo, this._clothingMaterial(0x131928));
-    pelvisCore.scale.set(1.16, 1.0, 0.82);
+    pelvisCore.scale.set(1.20, 1.0, 0.84);
     pelvisCore.castShadow = true;
     pelvisGroup.add(pelvisCore);
     this.segments.pelvis = pelvisGroup;
@@ -492,7 +492,7 @@ export class Avatar3DRenderer {
 
     // 5. UPPER LIMBS (Contoured Deltoids, Biceps, Forearms, Articulated Hands)
     // Upper Arms (Muscular bicep/tricep sweep)
-    const upperArmGeo = new THREE.CylinderGeometry(0.058, 0.052, 1.0, 18);
+    const upperArmGeo = new THREE.CylinderGeometry(0.082, 0.070, 1.0, 20);
     this.segments.upperArmL = new THREE.Mesh(upperArmGeo, this._skinMaterial());
     this.segments.upperArmR = new THREE.Mesh(upperArmGeo.clone(), this._skinMaterial());
     this.segments.upperArmL.castShadow = true;
@@ -501,7 +501,7 @@ export class Avatar3DRenderer {
     this.avatarRoot.add(this.segments.upperArmR);
 
     // Forearms (Tapering from muscular brachioradialis to wrist)
-    const foreArmGeo = new THREE.CylinderGeometry(0.050, 0.038, 1.0, 18);
+    const foreArmGeo = new THREE.CylinderGeometry(0.068, 0.052, 1.0, 20);
     this.segments.foreArmL = new THREE.Mesh(foreArmGeo, this._skinMaterial());
     this.segments.foreArmR = new THREE.Mesh(foreArmGeo.clone(), this._skinMaterial());
     this.segments.foreArmL.castShadow = true;
@@ -517,22 +517,22 @@ export class Avatar3DRenderer {
 
     // 6. LOWER LIMBS (Athletic Quads, Calves, High-Performance Sneakers)
     // Muscular Thighs (Vastus lateralis & medialis quad sweep)
-    const thighGeo = new THREE.CylinderGeometry(0.092, 0.072, 1.0, 20);
+    const thighGeo = new THREE.CylinderGeometry(0.132, 0.102, 1.0, 24);
     this.segments.thighL = new THREE.Mesh(thighGeo, this._clothingMaterial(0x141a2a));
     this.segments.thighR = new THREE.Mesh(thighGeo.clone(), this._clothingMaterial(0x141a2a));
-    this.segments.thighL.scale.set(1.08, 1.0, 1.04);
-    this.segments.thighR.scale.set(1.08, 1.0, 1.04);
+    this.segments.thighL.scale.set(1.20, 1.0, 1.15);
+    this.segments.thighR.scale.set(1.20, 1.0, 1.15);
     this.segments.thighL.castShadow = true;
     this.segments.thighR.castShadow = true;
     this.avatarRoot.add(this.segments.thighL);
     this.avatarRoot.add(this.segments.thighR);
 
     // Calves (Sculpted gastrocnemius belly tapering to Achilles)
-    const shinGeo = new THREE.CylinderGeometry(0.068, 0.046, 1.0, 18);
+    const shinGeo = new THREE.CylinderGeometry(0.098, 0.064, 1.0, 20);
     this.segments.shinL = new THREE.Mesh(shinGeo, this._skinMaterial());
     this.segments.shinR = new THREE.Mesh(shinGeo.clone(), this._skinMaterial());
-    this.segments.shinL.scale.set(1.04, 1.0, 1.12);
-    this.segments.shinR.scale.set(1.04, 1.0, 1.12);
+    this.segments.shinL.scale.set(1.15, 1.0, 1.18);
+    this.segments.shinR.scale.set(1.15, 1.0, 1.18);
     this.segments.shinL.castShadow = true;
     this.segments.shinR.castShadow = true;
     this.avatarRoot.add(this.segments.shinL);
@@ -546,18 +546,18 @@ export class Avatar3DRenderer {
 
     // 7. ANATOMICAL JOINT SPHERES & HALOS
     const jointDefs = [
-      ['shoulderL', 'Left Shoulder', true, 0.066],
-      ['shoulderR', 'Right Shoulder', true, 0.066],
-      ['elbowL', 'Left Elbow', true, 0.052],
-      ['elbowR', 'Right Elbow', true, 0.052],
-      ['wristL', 'Left Wrist', false, 0.042],
-      ['wristR', 'Right Wrist', false, 0.042],
-      ['hipL', 'Left Hip', true, 0.076],
-      ['hipR', 'Right Hip', true, 0.076],
-      ['kneeL', 'Left Knee', true, 0.062],
-      ['kneeR', 'Right Knee', true, 0.062],
-      ['ankleL', 'Left Ankle', false, 0.046],
-      ['ankleR', 'Right Ankle', false, 0.046]
+      ['shoulderL', 'Left Shoulder', true, 0.078],
+      ['shoulderR', 'Right Shoulder', true, 0.078],
+      ['elbowL', 'Left Elbow', true, 0.064],
+      ['elbowR', 'Right Elbow', true, 0.064],
+      ['wristL', 'Left Wrist', false, 0.050],
+      ['wristR', 'Right Wrist', false, 0.050],
+      ['hipL', 'Left Hip', true, 0.088],
+      ['hipR', 'Right Hip', true, 0.088],
+      ['kneeL', 'Left Knee', true, 0.074],
+      ['kneeR', 'Right Knee', true, 0.074],
+      ['ankleL', 'Left Ankle', false, 0.058],
+      ['ankleR', 'Right Ankle', false, 0.058]
     ];
 
     jointDefs.forEach(([name, label, isActive, r]) => {
@@ -798,47 +798,51 @@ export class Avatar3DRenderer {
   }
 
   _applyDefaultPose() {
-    this.segments.head.position.set(0, 1.95, 0);
-    this.segments.neck.position.set(0, 1.78, 0);
-    this.segments.collar.position.set(0, 1.62, 0);
-    this.segments.chest.position.set(0, 1.42, 0);
-    this.segments.abdomen.position.set(0, 1.05, 0);
-    this.segments.pelvis.position.set(0, 0.80, 0);
+    this.segments.head.position.set(0, 0.85, 0);
+    this.segments.neck.position.set(0, 0.72, 0);
+    this.segments.collar.position.set(0, 0.61, 0);
+    this.segments.chest.position.set(0, 0.45, 0);
+    this.segments.abdomen.position.set(0, 0.18, 0);
+    this.segments.pelvis.position.set(0, -0.05, 0);
 
-    this.segments.upperArmL.position.set(-0.35, 1.38, 0);
-    this.segments.upperArmR.position.set(0.35, 1.38, 0);
-    this.segments.foreArmL.position.set(-0.40, 0.95, 0);
-    this.segments.foreArmR.position.set(0.40, 0.95, 0);
-    this.segments.handL.position.set(-0.40, 0.65, 0);
-    this.segments.handR.position.set(0.40, 0.65, 0);
+    this.segments.upperArmL.position.set(-0.30, 0.40, 0);
+    this.segments.upperArmR.position.set(0.30, 0.40, 0);
+    this.segments.foreArmL.position.set(-0.35, 0.05, 0);
+    this.segments.foreArmR.position.set(0.35, 0.05, 0);
+    this.segments.handL.position.set(-0.36, -0.22, 0);
+    this.segments.handR.position.set(0.36, -0.22, 0);
 
-    this.segments.thighL.position.set(-0.16, 0.45, 0);
-    this.segments.thighR.position.set(0.16, 0.45, 0);
-    this.segments.shinL.position.set(-0.16, -0.25, 0);
-    this.segments.shinR.position.set(0.16, -0.25, 0);
-    this.segments.footL.position.set(-0.16, -0.70, 0.06);
-    this.segments.footR.position.set(0.16, -0.70, 0.06);
+    this.segments.thighL.position.set(-0.16, -0.32, 0);
+    this.segments.thighR.position.set(0.16, -0.32, 0);
+    this.segments.shinL.position.set(-0.16, -0.84, 0);
+    this.segments.shinR.position.set(0.16, -0.84, 0);
+    this.segments.footL.position.set(-0.16, -1.14, 0.05);
+    this.segments.footR.position.set(0.16, -1.14, 0.05);
 
-    this.joints.shoulderL.position.set(-0.25, 1.58, 0);
-    this.joints.shoulderR.position.set(0.25, 1.58, 0);
-    this.joints.elbowL.position.set(-0.35, 1.15, 0);
-    this.joints.elbowR.position.set(0.35, 1.15, 0);
-    this.joints.wristL.position.set(-0.40, 0.72, 0);
-    this.joints.wristR.position.set(0.40, 0.72, 0);
-    this.joints.hipL.position.set(-0.15, 0.82, 0);
-    this.joints.hipR.position.set(0.15, 0.82, 0);
-    this.joints.kneeL.position.set(-0.16, 0.10, 0);
-    this.joints.kneeR.position.set(0.16, 0.10, 0);
-    this.joints.ankleL.position.set(-0.16, -0.62, 0);
-    this.joints.ankleR.position.set(0.16, -0.62, 0);
+    this.joints.shoulderL.position.set(-0.25, 0.61, 0);
+    this.joints.shoulderR.position.set(0.25, 0.61, 0);
+    this.joints.elbowL.position.set(-0.32, 0.22, 0);
+    this.joints.elbowR.position.set(0.32, 0.22, 0);
+    this.joints.wristL.position.set(-0.36, -0.16, 0);
+    this.joints.wristR.position.set(0.36, -0.16, 0);
+    this.joints.hipL.position.set(-0.16, -0.05, 0);
+    this.joints.hipR.position.set(0.16, -0.05, 0);
+    this.joints.kneeL.position.set(-0.16, -0.58, 0);
+    this.joints.kneeR.position.set(0.16, -0.58, 0);
+    this.joints.ankleL.position.set(-0.16, -1.10, 0);
+    this.joints.ankleR.position.set(0.16, -1.10, 0);
   }
 
-  _lmTo3D(lm, scale = 4.2) {
+  _lmTo3D(lm, scale = 2.85) {
     if (!lm) return new THREE.Vector3(0, 0, 0);
+    // Correct horizontal-to-vertical aspect ratio to eliminate elongated slender appearance
+    const scaleX = scale * 1.26; // Natural broad athletic shoulders and hips
+    const scaleY = scale * 0.95; // Anatomical vertical length
+    const scaleZ = scale * 1.05;
     return new THREE.Vector3(
-      (lm.x - 0.5) * scale,
-      -(lm.y - 0.50) * scale,
-      (lm.z || 0) * scale * 1.0
+      (lm.x - 0.5) * scaleX,
+      -(lm.y - 0.50) * scaleY,
+      (lm.z || 0) * scaleZ
     );
   }
 
@@ -914,10 +918,10 @@ export class Avatar3DRenderer {
     if (spineDir.lengthSq() < 0.001) spineDir.set(0, 1, 0);
 
     const neckBase = midShoulder.clone();
-    const neckTop = midShoulder.clone().addScaledVector(spineDir, 0.14);
-    this._placeLimb(this.segments.neck, neckBase, neckTop, 0.95, 0.95);
+    const neckTop = midShoulder.clone().addScaledVector(spineDir, 0.10);
+    this._placeLimb(this.segments.neck, neckBase, neckTop, 1.0, 1.0);
 
-    const headPos = midShoulder.clone().addScaledVector(spineDir, 0.28);
+    const headPos = midShoulder.clone().addScaledVector(spineDir, 0.22);
     this.segments.head.position.copy(headPos);
 
     // Head orientation aligns dynamically with spinal vector & gaze
@@ -925,10 +929,10 @@ export class Avatar3DRenderer {
     this.segments.head.quaternion.setFromUnitVectors(gazeUp, spineDir);
 
     // ── 4. Upper Limbs (Biceps, Forearms, Hands) ──
-    this._placeLimb(this.segments.upperArmL, posShoulderL, posElbowL, 1.10, 1.10);
-    this._placeLimb(this.segments.upperArmR, posShoulderR, posElbowR, 1.10, 1.10);
-    this._placeLimb(this.segments.foreArmL, posElbowL, posWristL, 1.02, 1.02);
-    this._placeLimb(this.segments.foreArmR, posElbowR, posWristR, 1.02, 1.02);
+    this._placeLimb(this.segments.upperArmL, posShoulderL, posElbowL, 1.22, 1.18);
+    this._placeLimb(this.segments.upperArmR, posShoulderR, posElbowR, 1.22, 1.18);
+    this._placeLimb(this.segments.foreArmL, posElbowL, posWristL, 1.15, 1.12);
+    this._placeLimb(this.segments.foreArmR, posElbowR, posWristR, 1.15, 1.12);
 
     const dirForearmL = new THREE.Vector3().subVectors(posWristL, posElbowL).normalize();
     const dirForearmR = new THREE.Vector3().subVectors(posWristR, posElbowR).normalize();
@@ -941,10 +945,10 @@ export class Avatar3DRenderer {
     this.segments.handR.quaternion.setFromUnitVectors(upVec, dirForearmR);
 
     // ── 5. Lower Limbs (Thighs, Calves, Sneakers) ──
-    this._placeLimb(this.segments.thighL, posHipL, posKneeL, 1.08, 1.08);
-    this._placeLimb(this.segments.thighR, posHipR, posKneeR, 1.08, 1.08);
-    this._placeLimb(this.segments.shinL, posKneeL, posAnkleL, 1.0, 1.0);
-    this._placeLimb(this.segments.shinR, posKneeR, posAnkleR, 1.0, 1.0);
+    this._placeLimb(this.segments.thighL, posHipL, posKneeL, 1.20, 1.15);
+    this._placeLimb(this.segments.thighR, posHipR, posKneeR, 1.20, 1.15);
+    this._placeLimb(this.segments.shinL, posKneeL, posAnkleL, 1.15, 1.18);
+    this._placeLimb(this.segments.shinR, posKneeR, posAnkleR, 1.15, 1.18);
 
     // Adaptive foot grounding: natural tilt on toes during stepping/lunging/horizontal postures
     const shinDirL = new THREE.Vector3().subVectors(posAnkleL, posKneeL).normalize();
@@ -952,8 +956,8 @@ export class Avatar3DRenderer {
     const isHorizontalL = Math.abs(shinDirL.y) < 0.65;
     const isHorizontalR = Math.abs(shinDirR.y) < 0.65;
 
-    this.segments.footL.position.set(posAnkleL.x, posAnkleL.y - 0.04, posAnkleL.z + (isHorizontalL ? -0.04 : 0.06));
-    this.segments.footR.position.set(posAnkleR.x, posAnkleR.y - 0.04, posAnkleR.z + (isHorizontalR ? -0.04 : 0.06));
+    this.segments.footL.position.set(posAnkleL.x, posAnkleL.y - 0.035, posAnkleL.z + (isHorizontalL ? -0.04 : 0.05));
+    this.segments.footR.position.set(posAnkleR.x, posAnkleR.y - 0.035, posAnkleR.z + (isHorizontalR ? -0.04 : 0.05));
 
     if (isHorizontalL) {
       this.segments.footL.rotation.set(-Math.PI / 4, 0.14, 0);
@@ -1226,11 +1230,11 @@ export class Avatar3DRenderer {
   setViewPreset(name) {
     this.activeViewPreset = name;
     const presets = {
-      front:     { pos: new THREE.Vector3(0, 0.12, 4.2), target: new THREE.Vector3(0, -0.08, 0) },
-      side:      { pos: new THREE.Vector3(4.2, 0.12, 0), target: new THREE.Vector3(0, -0.08, 0) }, // Sagittal profile
-      side_left: { pos: new THREE.Vector3(-4.2, 0.12, 0), target: new THREE.Vector3(0, -0.08, 0) },
-      iso:       { pos: new THREE.Vector3(3.0, 1.4, 3.2), target: new THREE.Vector3(0, -0.08, 0) }, // 3/4 isometric
-      top:       { pos: new THREE.Vector3(0, 3.5, 2.6), target: new THREE.Vector3(0, -0.18, 0) }   // Elevated overhead 45°
+      front:     { pos: new THREE.Vector3(0, 0.06, 4.5), target: new THREE.Vector3(0, -0.06, 0) },
+      side:      { pos: new THREE.Vector3(4.5, 0.06, 0), target: new THREE.Vector3(0, -0.06, 0) }, // Sagittal profile
+      side_left: { pos: new THREE.Vector3(-4.5, 0.06, 0), target: new THREE.Vector3(0, -0.06, 0) },
+      iso:       { pos: new THREE.Vector3(3.3, 1.1, 3.3), target: new THREE.Vector3(0, -0.06, 0) }, // 3/4 isometric
+      top:       { pos: new THREE.Vector3(0, 3.8, 2.6), target: new THREE.Vector3(0, -0.12, 0) }   // Elevated overhead 45°
     };
     const p = presets[name];
     if (p) {

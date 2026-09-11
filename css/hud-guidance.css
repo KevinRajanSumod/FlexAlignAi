@@ -70,26 +70,26 @@
 /* ── Guidance Banner (Coach Note & Post-Exercise Feedback) ─── */
 .hud-guidance-banner {
   position: absolute;
-  top: 64px;
-  bottom: auto;
+  top: auto;
+  bottom: 34px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 45;
+  z-index: 85;
   background: rgba(10, 15, 28, 0.96);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(168, 85, 247, 0.45);
-  padding: 8px 16px;
+  padding: 8px 18px;
   border-radius: var(--radius-pill);
   font-size: 0.84rem;
   font-weight: 600;
   display: flex;
   align-items: center;
   gap: 10px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.75), 0 0 24px rgba(168, 85, 247, 0.25);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85), 0 0 24px rgba(168, 85, 247, 0.25);
   transition: all var(--duration-normal) var(--ease-out);
   pointer-events: auto;
-  max-width: 88%;
+  max-width: 86%;
   text-align: left;
   color: #f8fafc;
 }
