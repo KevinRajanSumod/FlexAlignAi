@@ -58,7 +58,10 @@ export class MotionSimulator {
     return lms;
   }
 
-  generateLandmarks(exercise, isFault = false) {
+  generateLandmarks(exerciseInput, isFault = false) {
+    const exDef = (typeof exerciseInput === 'object' && exerciseInput) ? exerciseInput : getExerciseDefinition(exerciseInput);
+    const exercise = (exDef && exDef.id) ? exDef.id : (typeof exerciseInput === 'string' ? exerciseInput : 'gym_squat');
+
     // Base humanoid skeleton (33 MediaPipe landmarks)
     const lms = new Array(33).fill(null).map(() => ({ x: 0.5, y: 0.5, z: 0, visibility: 0.98 }));
 
@@ -335,7 +338,7 @@ export class MotionSimulator {
     // 9. UNIVERSAL DYNAMIC AI-GENERATED / CUSTOM EXERCISE SYNTHESIZER
     // ─────────────────────────────────────────────────────────────
     } else {
-      const customDef = getExerciseDefinition(exercise) || {};
+      const customDef = exDef || getExerciseDefinition(exercise) || {};
       this._synthesizeCustomMotion(lms, customDef, isFault, shoulderY, hipY, kneeY, ankleY);
     }
 
@@ -363,41 +366,67 @@ export class MotionSimulator {
     else if (joint.includes('KNEE') || joint.includes('QUAD') || joint.includes('CALF') || joint.includes('ANKLE')) joint = 'KNEE';
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN A: PLANK / PUSH-UP / HORIZONTAL PRONE
+    // PATTERN A1: HIGH PLANK HOLD (ISOMETRIC)
     // ─────────────────────────────────────────────────────────────
-    if (posture === 'plank' || mType === 'pushup' || name.includes('push') || id.includes('push') || (mType === 'press_horizontal' && posture !== 'supine')) {
-      const maxDrop = isFault && mp.faultType === 'incomplete_rom' ? 0.05 : 0.12;
-      const dropY = cycle * maxDrop;
-
-      // Feet/Toes remain anchored at back near floor
+    if (mType === 'plank' || name.includes('plank')) {
       lms[27] = { x: 0.44, y: 0.89, z: -0.62, visibility: 0.98 };
       lms[28] = { x: 0.56, y: 0.89, z: -0.62, visibility: 0.98 };
+      lms[15] = { x: 0.41, y: 0.90, z: 0.10, visibility: 0.98 };
+      lms[16] = { x: 0.59, y: 0.90, z: 0.10, visibility: 0.98 };
+      const shY = 0.74;
+      lms[11] = { x: 0.41, y: shY, z: 0.10, visibility: 0.98 };
+      lms[12] = { x: 0.59, y: shY, z: 0.10, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: shY - 0.03, z: 0.20, visibility: 0.98 };
+      const hipSag = isFault ? (cycle * 0.10) : 0;
+      lms[23] = { x: 0.44, y: 0.78 + hipSag, z: -0.16, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: 0.78 + hipSag, z: -0.16, visibility: 0.98 };
+      lms[25] = { x: 0.44, y: 0.83, z: -0.38, visibility: 0.98 };
+      lms[26] = { x: 0.56, y: 0.83, z: -0.38, visibility: 0.98 };
+      lms[13] = { x: 0.40, y: 0.82, z: 0.10, visibility: 0.98 };
+      lms[14] = { x: 0.60, y: 0.82, z: 0.10, visibility: 0.98 };
 
-      // Hands remain firmly planted on the floor under shoulders
-      const handFlare = isFault ? 0.03 : 0.0;
-      lms[15] = { x: 0.38 - handFlare, y: 0.90, z: 0.10, visibility: 0.98 };
-      lms[16] = { x: 0.62 + handFlare, y: 0.90, z: 0.10, visibility: 0.98 };
-
-      // Shoulders lower down toward hands as chest lowers
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN A2: DIAMOND PUSH-UP (NARROW STANCE)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'diamond_pushup' || name.includes('diamond')) {
+      const maxDrop = isFault ? 0.06 : 0.12;
+      const dropY = cycle * maxDrop;
+      lms[27] = { x: 0.44, y: 0.89, z: -0.62, visibility: 0.98 };
+      lms[28] = { x: 0.56, y: 0.89, z: -0.62, visibility: 0.98 };
+      lms[15] = { x: 0.48, y: 0.90, z: 0.10, visibility: 0.98 };
+      lms[16] = { x: 0.52, y: 0.90, z: 0.10, visibility: 0.98 };
       const shY = 0.74 + dropY;
       lms[11] = { x: 0.41, y: shY, z: 0.10, visibility: 0.98 };
       lms[12] = { x: 0.59, y: shY, z: 0.10, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: shY - 0.03, z: 0.20, visibility: 0.98 };
+      lms[23] = { x: 0.44, y: 0.78 + dropY * 0.7, z: -0.16, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: 0.78 + dropY * 0.7, z: -0.16, visibility: 0.98 };
+      lms[25] = { x: 0.44, y: 0.83 + dropY * 0.35, z: -0.38, visibility: 0.98 };
+      lms[26] = { x: 0.56, y: 0.83 + dropY * 0.35, z: -0.38, visibility: 0.98 };
+      const flareX = isFault ? (0.07 * cycle) : (0.02 * cycle);
+      lms[13] = { x: 0.43 - flareX, y: shY + 0.08, z: 0.10 - 0.14 * cycle, visibility: 0.98 };
+      lms[14] = { x: 0.57 + flareX, y: shY + 0.08, z: 0.10 - 0.14 * cycle, visibility: 0.98 };
 
-      // Head aligned ahead of shoulders along spine
-      lms[0] = { x: 0.50, y: shY - 0.03, z: 0.20, visibility: 0.98 };
-
-      // Hips: optimal maintains rigid straight line between shoulders and feet.
-      // Fault (hip sag): hips collapse downward toward floor breaking the plank line!
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN A3: STANDARD PUSH-UP / PRONE PUSH
+    // ─────────────────────────────────────────────────────────────
+    } else if (posture === 'plank' || mType === 'pushup' || name.includes('push-up') || name.includes('pushup')) {
+      const maxDrop = isFault && mp.faultType === 'incomplete_rom' ? 0.05 : 0.12;
+      const dropY = cycle * maxDrop;
+      lms[27] = { x: 0.44, y: 0.89, z: -0.62, visibility: 0.98 };
+      lms[28] = { x: 0.56, y: 0.89, z: -0.62, visibility: 0.98 };
+      const handFlare = isFault ? 0.03 : 0.0;
+      lms[15] = { x: 0.38 - handFlare, y: 0.90, z: 0.10, visibility: 0.98 };
+      lms[16] = { x: 0.62 + handFlare, y: 0.90, z: 0.10, visibility: 0.98 };
+      const shY = 0.74 + dropY;
+      lms[11] = { x: 0.41, y: shY, z: 0.10, visibility: 0.98 };
+      lms[12] = { x: 0.59, y: shY, z: 0.10, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: shY - 0.03, z: 0.20, visibility: 0.98 };
       const hipSagY = isFault ? (dropY * 1.5) : (dropY * 0.7);
       lms[23] = { x: 0.44, y: 0.78 + hipSagY, z: -0.16, visibility: 0.98 };
       lms[24] = { x: 0.56, y: 0.78 + hipSagY, z: -0.16, visibility: 0.98 };
-
-      // Knees follow plank line
       lms[25] = { x: 0.44, y: 0.83 + dropY * 0.35, z: -0.38, visibility: 0.98 };
       lms[26] = { x: 0.56, y: 0.83 + dropY * 0.35, z: -0.38, visibility: 0.98 };
-
-      // Elbows: flex backward in Z and flare outward in X as chest lowers
-      // High plank: arms straight (~168°). Bottom depth: elbows bent back to ~78°-80°
       const elbowFlareX = isFault ? (0.09 * cycle) : (0.04 * cycle);
       const elbowRetractZ = 0.12 * cycle;
       const elbowY = shY + (0.90 - shY) * 0.5;
@@ -405,100 +434,151 @@ export class MotionSimulator {
       lms[14] = { x: 0.62 + elbowFlareX, y: elbowY, z: 0.10 - elbowRetractZ, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN B: SUPINE (BENCH PRESS, GLUTE BRIDGE, STRAIGHT LEG RAISE)
+    // PATTERN B0: SIDE-LYING CLAMSHELL
     // ─────────────────────────────────────────────────────────────
-    } else if (posture === 'supine' || name.includes('bench') || name.includes('floor press') || mType === 'bridge' || name.includes('bridge') || name.includes('thrust') || name.includes('slr') || name.includes('straight leg')) {
-      const isBridge = mType === 'bridge' || name.includes('bridge') || name.includes('thrust') || name.includes('pelvic');
-      const isSlr = mType === 'slr' || name.includes('straight leg') || name.includes('slr');
+    } else if (posture === 'side_lying' || mType === 'clamshell' || name.includes('clamshell')) {
+      const gY = 0.84;
+      lms[0]  = { x: 0.32, y: gY - 0.02, z: 0.0, visibility: 0.98 };
+      lms[11] = { x: 0.38, y: gY, z: 0.0, visibility: 0.98 };
+      lms[12] = { x: 0.38, y: gY - 0.12, z: 0.0, visibility: 0.98 };
+      lms[23] = { x: 0.50, y: gY, z: 0.0, visibility: 0.98 };
+      lms[24] = { x: 0.50, y: gY - 0.10, z: 0.0, visibility: 0.98 };
+      lms[25] = { x: 0.58, y: gY, z: 0.22, visibility: 0.98 };
+      lms[27] = { x: 0.50, y: gY, z: 0.36, visibility: 0.98 };
+      lms[28] = { x: 0.50, y: gY - 0.02, z: 0.36, visibility: 0.98 };
+      const maxAbduct = isFault ? 0.06 : 0.18;
+      const kneeRise = cycle * maxAbduct;
+      lms[26] = { x: 0.58, y: gY - 0.10 - kneeRise, z: 0.22, visibility: 0.98 };
+      lms[13] = { x: 0.34, y: gY, z: 0.10, visibility: 0.98 };
+      lms[15] = { x: 0.40, y: gY, z: 0.12, visibility: 0.98 };
+      lms[14] = { x: 0.40, y: gY - 0.08, z: 0.10, visibility: 0.98 };
+      lms[16] = { x: 0.46, y: gY - 0.06, z: 0.12, visibility: 0.98 };
 
-      if (isBridge) {
-        // Glute Bridge / Pelvic Thrust
-        const bridgeLift = isFault ? (0.12 * cycle) : (0.22 * cycle);
-        lms[0]  = { x: 0.50, y: 0.84, z: 0.38, visibility: 0.98 };
-        lms[11] = { x: 0.42, y: 0.84, z: 0.25, visibility: 0.98 };
-        lms[12] = { x: 0.58, y: 0.84, z: 0.25, visibility: 0.98 };
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN B1: POSTERIOR PELVIC TILT
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'pelvic_tilt' || name.includes('pelvic tilt') || id.includes('pelvic_tilt')) {
+      lms[0]  = { x: 0.50, y: 0.84, z: 0.38, visibility: 0.98 };
+      lms[11] = { x: 0.42, y: 0.84, z: 0.25, visibility: 0.98 };
+      lms[12] = { x: 0.58, y: 0.84, z: 0.25, visibility: 0.98 };
+      lms[25] = { x: 0.43, y: 0.74, z: -0.28, visibility: 0.98 };
+      lms[26] = { x: 0.57, y: 0.74, z: -0.28, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: 0.88, z: -0.34, visibility: 0.98 };
+      lms[28] = { x: 0.57, y: 0.88, z: -0.34, visibility: 0.98 };
+      const tiltShift = cycle * 0.04;
+      lms[23] = { x: 0.44, y: 0.84 + tiltShift * 0.3, z: -0.05 + tiltShift, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: 0.84 + tiltShift * 0.3, z: -0.05 + tiltShift, visibility: 0.98 };
+      lms[13] = { x: 0.38, y: 0.86, z: 0.12, visibility: 0.98 };
+      lms[14] = { x: 0.62, y: 0.86, z: 0.12, visibility: 0.98 };
+      lms[15] = { x: 0.38, y: 0.88, z: -0.02, visibility: 0.98 };
+      lms[16] = { x: 0.62, y: 0.88, z: -0.02, visibility: 0.98 };
 
-        // Hips elevate to full extension (collinear with shoulders and knees)
-        lms[23] = { x: 0.44, y: 0.84 - bridgeLift, z: -0.05, visibility: 0.98 };
-        lms[24] = { x: 0.56, y: 0.84 - bridgeLift, z: -0.05, visibility: 0.98 };
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN B2: ABDOMINAL CRUNCH
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'crunch' || name.includes('crunch')) {
+      const crunchLift = isFault ? (0.05 * cycle) : (0.12 * cycle);
+      lms[23] = { x: 0.44, y: 0.84, z: -0.05, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: 0.84, z: -0.05, visibility: 0.98 };
+      lms[25] = { x: 0.43, y: 0.74, z: -0.28, visibility: 0.98 };
+      lms[26] = { x: 0.57, y: 0.74, z: -0.28, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: 0.88, z: -0.34, visibility: 0.98 };
+      lms[28] = { x: 0.57, y: 0.88, z: -0.34, visibility: 0.98 };
+      lms[11] = { x: 0.42, y: 0.84 - crunchLift * 0.8, z: 0.25 - crunchLift * 0.6, visibility: 0.98 };
+      lms[12] = { x: 0.58, y: 0.84 - crunchLift * 0.8, z: 0.25 - crunchLift * 0.6, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.84 - crunchLift * 1.3, z: 0.38 - crunchLift * 0.8, visibility: 0.98 };
+      lms[13] = { x: 0.36, y: 0.80 - crunchLift * 0.7, z: 0.30, visibility: 0.98 };
+      lms[14] = { x: 0.64, y: 0.80 - crunchLift * 0.7, z: 0.30, visibility: 0.98 };
+      lms[15] = { x: 0.42, y: 0.76 - crunchLift, z: 0.36, visibility: 0.98 };
+      lms[16] = { x: 0.58, y: 0.76 - crunchLift, z: 0.36, visibility: 0.98 };
 
-        // Knees bent ~90°
-        lms[25] = { x: 0.43, y: 0.76, z: -0.28, visibility: 0.98 };
-        lms[26] = { x: 0.57, y: 0.76, z: -0.28, visibility: 0.98 };
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN B3: ACTIVE ANKLE PUMPS
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'ankle_pump' || name.includes('ankle pump') || id.includes('ankle_pump')) {
+      lms[0]  = { x: 0.50, y: 0.82, z: 0.38, visibility: 0.98 };
+      lms[11] = { x: 0.42, y: 0.82, z: 0.25, visibility: 0.98 };
+      lms[12] = { x: 0.58, y: 0.82, z: 0.25, visibility: 0.98 };
+      lms[23] = { x: 0.44, y: 0.84, z: -0.15, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: 0.84, z: -0.15, visibility: 0.98 };
+      lms[25] = { x: 0.43, y: 0.84, z: -0.38, visibility: 0.98 };
+      lms[26] = { x: 0.57, y: 0.84, z: -0.38, visibility: 0.98 };
+      const pumpZ = (cycle - 0.5) * 0.12;
+      const pumpY = (cycle - 0.5) * 0.06;
+      lms[27] = { x: 0.43, y: 0.88 + pumpY, z: -0.62 + pumpZ, visibility: 0.98 };
+      lms[28] = { x: 0.57, y: 0.88 + pumpY, z: -0.62 + pumpZ, visibility: 0.98 };
+      lms[15] = { x: 0.38, y: 0.88, z: 0.05, visibility: 0.98 };
+      lms[16] = { x: 0.62, y: 0.88, z: 0.05, visibility: 0.98 };
 
-        // Feet flat on ground
-        lms[27] = { x: 0.43, y: 0.88, z: -0.34, visibility: 0.98 };
-        lms[28] = { x: 0.57, y: 0.88, z: -0.34, visibility: 0.98 };
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN B4: STRAIGHT LEG RAISE (SLR)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'slr' || name.includes('straight leg') || id.includes('slr')) {
+      lms[0]  = { x: 0.50, y: 0.84, z: 0.38, visibility: 0.98 };
+      lms[11] = { x: 0.42, y: 0.84, z: 0.25, visibility: 0.98 };
+      lms[12] = { x: 0.58, y: 0.84, z: 0.25, visibility: 0.98 };
+      lms[23] = { x: 0.44, y: 0.84, z: -0.15, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: 0.84, z: -0.15, visibility: 0.98 };
+      lms[25] = { x: 0.43, y: 0.84, z: -0.38, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: 0.88, z: -0.60, visibility: 0.98 };
+      const liftAngleDeg = isFault ? (25 * cycle) : (48 * cycle);
+      const rad = (liftAngleDeg * Math.PI) / 180;
+      const thighLen = 0.22;
+      const shinLen = 0.24;
+      const kneeYPos = 0.84 - Math.sin(rad) * thighLen;
+      const kneeZPos = -0.15 - Math.cos(rad) * thighLen;
+      lms[26] = { x: 0.57, y: kneeYPos, z: kneeZPos, visibility: 0.98 };
+      const kneeBend = isFault ? 0.06 : 0;
+      const ankleYPos = kneeYPos - Math.sin(rad) * shinLen + kneeBend;
+      const ankleZPos = kneeZPos - Math.cos(rad) * shinLen;
+      lms[28] = { x: 0.57, y: ankleYPos, z: ankleZPos, visibility: 0.98 };
+      lms[15] = { x: 0.38, y: 0.88, z: 0.05, visibility: 0.98 };
+      lms[16] = { x: 0.62, y: 0.88, z: 0.05, visibility: 0.98 };
 
-        // Arms resting by sides on ground
-        lms[13] = { x: 0.38, y: 0.86, z: 0.12, visibility: 0.98 };
-        lms[14] = { x: 0.62, y: 0.86, z: 0.12, visibility: 0.98 };
-        lms[15] = { x: 0.38, y: 0.88, z: -0.02, visibility: 0.98 };
-        lms[16] = { x: 0.62, y: 0.88, z: -0.02, visibility: 0.98 };
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN B5: GLUTE BRIDGE / HIP THRUST
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'bridge' || name.includes('bridge') || name.includes('thrust')) {
+      const bridgeLift = isFault ? (0.12 * cycle) : (0.22 * cycle);
+      lms[0]  = { x: 0.50, y: 0.84, z: 0.38, visibility: 0.98 };
+      lms[11] = { x: 0.42, y: 0.84, z: 0.25, visibility: 0.98 };
+      lms[12] = { x: 0.58, y: 0.84, z: 0.25, visibility: 0.98 };
+      lms[23] = { x: 0.44, y: 0.84 - bridgeLift, z: -0.05, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: 0.84 - bridgeLift, z: -0.05, visibility: 0.98 };
+      lms[25] = { x: 0.43, y: 0.76, z: -0.28, visibility: 0.98 };
+      lms[26] = { x: 0.57, y: 0.76, z: -0.28, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: 0.88, z: -0.34, visibility: 0.98 };
+      lms[28] = { x: 0.57, y: 0.88, z: -0.34, visibility: 0.98 };
+      lms[13] = { x: 0.38, y: 0.86, z: 0.12, visibility: 0.98 };
+      lms[14] = { x: 0.62, y: 0.86, z: 0.12, visibility: 0.98 };
+      lms[15] = { x: 0.38, y: 0.88, z: -0.02, visibility: 0.98 };
+      lms[16] = { x: 0.62, y: 0.88, z: -0.02, visibility: 0.98 };
 
-      } else if (isSlr) {
-        // Straight Leg Raise (SLR)
-        lms[0]  = { x: 0.50, y: 0.84, z: 0.38, visibility: 0.98 };
-        lms[11] = { x: 0.42, y: 0.84, z: 0.25, visibility: 0.98 };
-        lms[12] = { x: 0.58, y: 0.84, z: 0.25, visibility: 0.98 };
-        lms[23] = { x: 0.44, y: 0.84, z: -0.15, visibility: 0.98 };
-        lms[24] = { x: 0.56, y: 0.84, z: -0.15, visibility: 0.98 };
-
-        // Non-working left leg resting on ground
-        lms[25] = { x: 0.43, y: 0.84, z: -0.38, visibility: 0.98 };
-        lms[27] = { x: 0.43, y: 0.88, z: -0.60, visibility: 0.98 };
-
-        // Active right leg raises with knee locked straight (~45°-60° hip flexion)
-        const liftAngleDeg = isFault ? (25 * cycle) : (48 * cycle);
-        const rad = (liftAngleDeg * Math.PI) / 180;
-        const thighLen = 0.22;
-        const shinLen = 0.24;
-
-        const kneeYPos = 0.84 - Math.sin(rad) * thighLen;
-        const kneeZPos = -0.15 - Math.cos(rad) * thighLen;
-        lms[26] = { x: 0.57, y: kneeYPos, z: kneeZPos, visibility: 0.98 };
-
-        // Knee lag fault if isFault
-        const kneeBend = isFault ? 0.06 : 0;
-        const ankleYPos = kneeYPos - Math.sin(rad) * shinLen + kneeBend;
-        const ankleZPos = kneeZPos - Math.cos(rad) * shinLen;
-        lms[28] = { x: 0.57, y: ankleYPos, z: ankleZPos, visibility: 0.98 };
-
-        // Arms resting by sides
-        lms[15] = { x: 0.38, y: 0.88, z: 0.05, visibility: 0.98 };
-        lms[16] = { x: 0.62, y: 0.88, z: 0.05, visibility: 0.98 };
-
-      } else {
-        // Bench Press / Floor Press
-        const startAngle = mp.startAngle || 165;
-        const targetAngle = isFault ? 115 : (mp.targetAngle || customDef.defaultTarget || 80);
-        const angleDeg = startAngle - cycle * (startAngle - targetAngle);
-        const angleRad = (angleDeg * Math.PI) / 180;
-        const armLen = 0.20;
-
-        // Torso flat on bench/ground
-        lms[0]  = { x: 0.50, y: 0.82, z: 0.40, visibility: 0.98 };
-        lms[11] = { x: 0.42, y: 0.82, z: 0.25, visibility: 0.98 };
-        lms[12] = { x: 0.58, y: 0.82, z: 0.25, visibility: 0.98 };
-        lms[23] = { x: 0.44, y: 0.82, z: -0.15, visibility: 0.98 };
-        lms[24] = { x: 0.56, y: 0.82, z: -0.15, visibility: 0.98 };
-
-        // Knees bent, feet on ground
-        lms[25] = { x: 0.43, y: 0.74, z: -0.35, visibility: 0.98 };
-        lms[26] = { x: 0.57, y: 0.74, z: -0.35, visibility: 0.98 };
-        lms[27] = { x: 0.43, y: 0.88, z: -0.45, visibility: 0.98 };
-        lms[28] = { x: 0.57, y: 0.88, z: -0.45, visibility: 0.98 };
-
-        // Arms press upward towards ceiling
-        const elbowDropZ = 0.12 * cycle;
-        const flareX = isFault ? (0.06 * cycle) : 0;
-        lms[13] = { x: 0.38 - flareX, y: 0.78, z: 0.25 - elbowDropZ, visibility: 0.98 };
-        lms[14] = { x: 0.62 + flareX, y: 0.78, z: 0.25 - elbowDropZ, visibility: 0.98 };
-
-        const wristElev = Math.sin(angleRad) * armLen;
-        lms[15] = { x: 0.40, y: 0.78 - wristElev, z: 0.25, visibility: 0.98 };
-        lms[16] = { x: 0.60, y: 0.78 - wristElev, z: 0.25, visibility: 0.98 };
-      }
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN B6: SUPINE BENCH / FLOOR PRESS
+    // ─────────────────────────────────────────────────────────────
+    } else if (posture === 'supine' || mType === 'floor_press' || mType === 'press_horizontal' || name.includes('bench') || name.includes('floor press')) {
+      const isFloor = mType === 'floor_press' || name.includes('floor');
+      const targetAngle = isFloor ? 90 : (isFault ? 115 : 80);
+      const angleDeg = 165 - cycle * (165 - targetAngle);
+      const angleRad = (angleDeg * Math.PI) / 180;
+      const armLen = 0.20;
+      lms[0]  = { x: 0.50, y: 0.82, z: 0.40, visibility: 0.98 };
+      lms[11] = { x: 0.42, y: 0.82, z: 0.25, visibility: 0.98 };
+      lms[12] = { x: 0.58, y: 0.82, z: 0.25, visibility: 0.98 };
+      lms[23] = { x: 0.44, y: 0.82, z: -0.15, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: 0.82, z: -0.15, visibility: 0.98 };
+      lms[25] = { x: 0.43, y: 0.74, z: -0.35, visibility: 0.98 };
+      lms[26] = { x: 0.57, y: 0.74, z: -0.35, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: 0.88, z: -0.45, visibility: 0.98 };
+      lms[28] = { x: 0.57, y: 0.88, z: -0.45, visibility: 0.98 };
+      const elbowDropZ = (isFloor ? 0.08 : 0.12) * cycle;
+      const flareX = isFault ? (0.06 * cycle) : 0;
+      lms[13] = { x: 0.38 - flareX, y: 0.78, z: 0.25 - elbowDropZ, visibility: 0.98 };
+      lms[14] = { x: 0.62 + flareX, y: 0.78, z: 0.25 - elbowDropZ, visibility: 0.98 };
+      const wristElev = Math.sin(angleRad) * armLen;
+      lms[15] = { x: 0.40, y: 0.78 - wristElev, z: 0.25, visibility: 0.98 };
+      lms[16] = { x: 0.60, y: 0.78 - wristElev, z: 0.25, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
     // PATTERN B2: QUADRUPED (ALL-FOURS: BIRD DOG, CAT-COW)
@@ -580,6 +660,29 @@ export class MotionSimulator {
     // ─────────────────────────────────────────────────────────────
     // PATTERN C: BENT-OVER ROW / HINGED UPPER BODY
     // ─────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN C1: SINGLE-ARM DUMBBELL ROW
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'dumbbell_row') {
+      const torsoPitchZ = 0.28;
+      const hipPushZ = -0.22;
+      lms[23] = { x: 0.44, y: hipY + 0.06, z: hipPushZ, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: hipY + 0.06, z: hipPushZ, visibility: 0.98 };
+      lms[11] = { x: 0.43, y: shoulderY + 0.18, z: torsoPitchZ, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY + 0.18, z: torsoPitchZ, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.16 + 0.18, z: torsoPitchZ, visibility: 0.98 };
+      // Left hand braced forward on bench/knee
+      lms[13] = { x: 0.38, y: 0.56, z: torsoPitchZ + 0.10, visibility: 0.98 };
+      lms[15] = { x: 0.38, y: 0.72, z: torsoPitchZ + 0.12, visibility: 0.98 };
+      // Working right arm pulls dumbbell toward hip pocket
+      const pullZ = -0.24 * cycle;
+      const pullY = -0.12 * cycle;
+      lms[14] = { x: 0.59, y: 0.48 + pullY, z: torsoPitchZ + pullZ, visibility: 0.98 };
+      lms[16] = { x: 0.58, y: 0.66 + pullY * 0.6, z: torsoPitchZ + pullZ * 0.6, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN C2: BENT-OVER BARBELL ROW
+    // ─────────────────────────────────────────────────────────────
     } else if ((posture === 'hinged' && (mType === 'row' || name.includes('row') || name.includes('pull'))) || mType === 'row') {
       const torsoPitchZ = 0.28;
       const hipPushZ = -0.22;
@@ -588,25 +691,41 @@ export class MotionSimulator {
       lms[11] = { x: 0.43, y: shoulderY + 0.18, z: torsoPitchZ, visibility: 0.98 };
       lms[12] = { x: 0.57, y: shoulderY + 0.18, z: torsoPitchZ, visibility: 0.98 };
       lms[0]  = { x: 0.50, y: 0.16 + 0.18, z: torsoPitchZ, visibility: 0.98 };
-
-      // Soft knees
       lms[25] = { x: 0.43, y: kneeY - 0.02, z: 0.04, visibility: 0.98 };
       lms[26] = { x: 0.57, y: kneeY - 0.02, z: 0.04, visibility: 0.98 };
-
-      // Row pull: elbows pull back past ribcage
       const pullZ = -0.22 * cycle;
       const pullY = -0.10 * cycle;
       const flareX = isFault ? (0.06 * cycle) : (0.02 * cycle);
-
       lms[13] = { x: 0.41 - flareX, y: 0.48 + pullY, z: torsoPitchZ + pullZ, visibility: 0.98 };
       lms[14] = { x: 0.59 + flareX, y: 0.48 + pullY, z: torsoPitchZ + pullZ, visibility: 0.98 };
       lms[15] = { x: 0.42, y: 0.66 + pullY * 0.5, z: torsoPitchZ + pullZ * 0.5, visibility: 0.98 };
       lms[16] = { x: 0.58, y: 0.66 + pullY * 0.5, z: torsoPitchZ + pullZ * 0.5, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN D: PULL-UP / CHIN-UP / LAT PULLDOWN
+    // PATTERN D1: UNDERHAND CHIN-UP
     // ─────────────────────────────────────────────────────────────
-    } else if (mType === 'pullup' || name.includes('pull-up') || name.includes('pullup') || name.includes('chin-up')) {
+    } else if (mType === 'chinup' || name.includes('chin-up') || name.includes('chinup')) {
+      const ascendY = -0.18 * cycle;
+      lms[0].y  = 0.16 + ascendY;
+      lms[11].y = shoulderY + ascendY;
+      lms[12].y = shoulderY + ascendY;
+      lms[23].y = hipY + ascendY;
+      lms[24].y = hipY + ascendY;
+      lms[25].y = kneeY + ascendY;
+      lms[26].y = kneeY + ascendY;
+      lms[27].y = ankleY + ascendY;
+      lms[28].y = ankleY + ascendY;
+      // Closer supinated grip
+      lms[15] = { x: 0.43, y: 0.08, z: 0.08, visibility: 0.98 };
+      lms[16] = { x: 0.57, y: 0.08, z: 0.08, visibility: 0.98 };
+      const elbowYPos = 0.22 - ascendY * 0.6;
+      lms[13] = { x: 0.38, y: elbowYPos, z: -0.04 * cycle, visibility: 0.98 };
+      lms[14] = { x: 0.62, y: elbowYPos, z: -0.04 * cycle, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN D2: OVERHAND PULL-UP / LAT PULLDOWN
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'pullup' || name.includes('pull-up') || name.includes('pullup')) {
       const ascendY = -0.16 * cycle;
       lms[0].y  = 0.16 + ascendY;
       lms[11].y = shoulderY + ascendY;
@@ -617,18 +736,14 @@ export class MotionSimulator {
       lms[26].y = kneeY + ascendY;
       lms[27].y = ankleY + ascendY;
       lms[28].y = ankleY + ascendY;
-
-      // Hands anchored overhead on pull-up bar
-      lms[15] = { x: 0.38, y: 0.08, z: 0.06, visibility: 0.98 };
-      lms[16] = { x: 0.62, y: 0.08, z: 0.06, visibility: 0.98 };
-
-      // Elbows drive down and back to ribs
+      lms[15] = { x: 0.36, y: 0.08, z: 0.06, visibility: 0.98 };
+      lms[16] = { x: 0.64, y: 0.08, z: 0.06, visibility: 0.98 };
       const elbowYPos = 0.22 - ascendY * 0.6;
       lms[13] = { x: 0.34, y: elbowYPos, z: -0.05 * cycle, visibility: 0.98 };
       lms[14] = { x: 0.66, y: elbowYPos, z: -0.05 * cycle, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN E: DIPS
+    // PATTERN E: PARALLEL BAR DIPS
     // ─────────────────────────────────────────────────────────────
     } else if (mType === 'dip' || name.includes('dip')) {
       const dipDropY = 0.16 * cycle;
@@ -638,18 +753,34 @@ export class MotionSimulator {
       lms[0]  = { x: 0.50, y: 0.16 + dipDropY, z: torsoLeanZ, visibility: 0.98 };
       lms[23] = { x: 0.44, y: hipY + dipDropY, z: torsoLeanZ * 0.8, visibility: 0.98 };
       lms[24] = { x: 0.56, y: hipY + dipDropY, z: torsoLeanZ * 0.8, visibility: 0.98 };
-
-      // Hands fixed on parallel bars
       lms[15] = { x: 0.38, y: 0.58, z: 0.0, visibility: 0.98 };
       lms[16] = { x: 0.62, y: 0.58, z: 0.0, visibility: 0.98 };
-
-      // Elbows flex backward
       const elbowZ = -0.14 * cycle;
       lms[13] = { x: 0.36, y: 0.52 + dipDropY * 0.3, z: elbowZ, visibility: 0.98 };
       lms[14] = { x: 0.64, y: 0.52 + dipDropY * 0.3, z: elbowZ, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN 1: BICEP CURL / FOREARM FLEXION
+    // PATTERN 1A: HAMMER CURL (NEUTRAL GRIP)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'hammer_curl' || name.includes('hammer')) {
+      const elbowY = 0.47;
+      const armLen = 0.21;
+      lms[11] = { x: 0.43, y: shoulderY, z: 0, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY, z: 0, visibility: 0.98 };
+      lms[13] = { x: 0.41, y: elbowY, z: 0, visibility: 0.98 };
+      lms[14] = { x: 0.59, y: elbowY, z: 0, visibility: 0.98 };
+      const startAngle = 165;
+      const targetAngle = isFault ? 85 : 50;
+      const angleDeg = startAngle - cycle * (startAngle - targetAngle);
+      const angleRad = (angleDeg * Math.PI) / 180;
+      // Pure sagittal arc without wrist supination
+      const wristDispY = Math.cos(Math.PI - angleRad) * armLen;
+      const wristDispZ = Math.sin(Math.PI - angleRad) * armLen;
+      lms[15] = { x: 0.41, y: elbowY + wristDispY, z: wristDispZ, visibility: 0.98 };
+      lms[16] = { x: 0.59, y: elbowY + wristDispY, z: wristDispZ, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 1B: STANDARD BICEP CURL
     // ─────────────────────────────────────────────────────────────
     } else if (mType === 'curl' || mp.armPattern === 'bicep_curl' || (joint === 'ELBOW' && isFlexion && !mType.includes('push') && !mType.includes('bench'))) {
       const elbowY = 0.47;
@@ -657,20 +788,16 @@ export class MotionSimulator {
       const leanBackZ = isFault ? (-0.18 * cycle) : 0;
       lms[11] = { x: 0.43, y: shoulderY, z: leanBackZ, visibility: 0.98 };
       lms[12] = { x: 0.57, y: shoulderY, z: leanBackZ, visibility: 0.98 };
-
       const elbowDriftZ = isFault ? (0.18 * cycle) : 0;
       const flareX = isFault ? (0.05 * cycle) : 0;
       lms[13] = { x: 0.41 - flareX, y: elbowY, z: elbowDriftZ, visibility: 0.98 };
       lms[14] = { x: 0.59 + flareX, y: elbowY, z: elbowDriftZ, visibility: 0.98 };
-
       const startAngle = mp.startAngle || 165;
       const targetAngle = isFault ? (mp.faultAngle || 85) : (mp.targetAngle || customDef.defaultTarget || 40);
       const angleDeg = startAngle - cycle * (startAngle - targetAngle);
       const angleRad = (angleDeg * Math.PI) / 180;
-
       const wristDispY = Math.cos(Math.PI - angleRad) * armLen;
       const wristDispZ = Math.sin(Math.PI - angleRad) * armLen * 0.9;
-
       lms[15] = { x: 0.42 - flareX * 0.5, y: elbowY + wristDispY, z: elbowDriftZ + wristDispZ, visibility: 0.98 };
       lms[16] = { x: 0.58 + flareX * 0.5, y: elbowY + wristDispY, z: elbowDriftZ + wristDispZ, visibility: 0.98 };
 
@@ -683,23 +810,38 @@ export class MotionSimulator {
       const swingZ = isFault ? (0.22 * cycle) : 0;
       const flareX = isFault ? (0.06 * cycle) : 0;
       const elbowBaseZ = 0.02;
-
       lms[13] = { x: 0.41 - flareX, y: elbowY, z: elbowBaseZ + swingZ, visibility: 0.98 };
       lms[14] = { x: 0.59 + flareX, y: elbowY, z: elbowBaseZ + swingZ, visibility: 0.98 };
-
       const startAngle = mp.startAngle || 75;
       const maxExtDeg = isFault ? (mp.faultAngle || 135) : (mp.targetAngle || customDef.defaultTarget || 170);
       const extDeg = startAngle + cycle * (maxExtDeg - startAngle);
       const extRad = (extDeg * Math.PI) / 180;
-
       const wristDispY = Math.cos(Math.PI - extRad) * armLen;
       const wristDispZ = Math.sin(Math.PI - extRad) * armLen * 0.9;
-
       lms[15] = { x: 0.41 - flareX, y: elbowY + wristDispY, z: elbowBaseZ + swingZ + wristDispZ, visibility: 0.98 };
       lms[16] = { x: 0.59 + flareX, y: elbowY + wristDispY, z: elbowBaseZ + swingZ + wristDispZ, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN 3: OVERHEAD SHOULDER PRESS
+    // PATTERN 3A: ARNOLD DUMBBELL PRESS (ROTATING PRESS)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'arnold_press' || name.includes('arnold')) {
+      // Starts with palms facing chest in supinated position, rotates out to overhead lockout
+      const startWristX = 0.46; // close in front of chest
+      const endWristX = 0.41;   // wide at top
+      const wristX = startWristX - cycle * (startWristX - endWristX);
+      const wristYPos = 0.38 - cycle * 0.28;
+      const wristZ = 0.16 * (1 - cycle); // rotates from front to overhead inline
+      lms[11] = { x: 0.43, y: shoulderY, z: 0, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY, z: 0, visibility: 0.98 };
+      const elbowX = 0.42 - cycle * 0.05;
+      const elbowYPos = 0.44 - cycle * 0.22;
+      lms[13] = { x: elbowX, y: elbowYPos, z: wristZ * 0.7, visibility: 0.98 };
+      lms[15] = { x: wristX, y: wristYPos, z: wristZ, visibility: 0.98 };
+      lms[14] = { x: 1 - elbowX, y: elbowYPos, z: wristZ * 0.7, visibility: 0.98 };
+      lms[16] = { x: 1 - wristX, y: wristYPos, z: wristZ, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 3B: OVERHEAD SHOULDER PRESS
     // ─────────────────────────────────────────────────────────────
     } else if (mType === 'press_overhead' || mp.armPattern === 'overhead_press' || (customDef.name && customDef.name.toLowerCase().includes('overhead'))) {
       const archZ = isFault ? (-0.22 * cycle) : 0;
@@ -708,22 +850,76 @@ export class MotionSimulator {
       lms[12] = { x: 0.57, y: shoulderY, z: archZ, visibility: 0.98 };
       lms[23].z = hipPushZ;
       lms[24].z = hipPushZ;
-
       const elbowX = 0.35 + cycle * 0.07;
       const elbowYPos = 0.32 - cycle * 0.15;
       const elbowZ = 0.06 * (1 - cycle) + archZ;
-
       const wristX = 0.39 + cycle * 0.03;
       const wristYPos = 0.22 - cycle * 0.18;
       const wristZ = 0.08 * (1 - cycle) + archZ;
-
       lms[13] = { x: elbowX, y: elbowYPos, z: elbowZ, visibility: 0.98 };
       lms[15] = { x: wristX, y: wristYPos, z: wristZ, visibility: 0.98 };
       lms[14] = { x: 1 - elbowX, y: elbowYPos, z: elbowZ, visibility: 0.98 };
       lms[16] = { x: 1 - wristX, y: wristYPos, z: wristZ, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN 4: SHOULDER LATERAL RAISE / ABDUCTION
+    // PATTERN 4A: CODMAN SHOULDER PENDULUM SWINGS
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'pendulum' || name.includes('pendulum')) {
+      // Torso hinged forward at 45°
+      lms[23] = { x: 0.44, y: hipY + 0.08, z: -0.22, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: hipY + 0.08, z: -0.22, visibility: 0.98 };
+      lms[11] = { x: 0.43, y: shoulderY + 0.22, z: 0.28, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY + 0.22, z: 0.28, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.16 + 0.22, z: 0.30, visibility: 0.98 };
+      // Non-working left arm braced on support
+      lms[13] = { x: 0.38, y: 0.58, z: 0.20, visibility: 0.98 };
+      lms[15] = { x: 0.38, y: 0.72, z: 0.22, visibility: 0.98 };
+      // Working right arm hangs limp and swings in smooth circular pendulum
+      const pendTime = (performance.now() - this._startTime) * 0.003;
+      const radius = isFault ? 0.04 : 0.12;
+      const pendX = Math.cos(pendTime) * radius;
+      const pendZ = Math.sin(pendTime) * radius;
+      lms[14] = { x: 0.57 + pendX * 0.4, y: 0.62, z: 0.28 + pendZ * 0.4, visibility: 0.98 };
+      lms[16] = { x: 0.57 + pendX, y: 0.78, z: 0.28 + pendZ, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 4B: SCAPULAR PLANE ELEVATION (SCAPTION / FULL CAN)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'scaption' || name.includes('scaption')) {
+      const maxScaption = isFault ? 120 : (mp.targetAngle || 90);
+      const startDeg = mp.startAngle || 18;
+      const scaptDeg = startDeg + cycle * (maxScaption - startDeg);
+      const rad = (scaptDeg * Math.PI) / 180;
+      const armLen = 0.23;
+      // 30° anterior to coronal plane: x is 0.866, z is 0.500
+      const dispSide = Math.sin(rad) * 0.866 * armLen;
+      const dispFront = Math.sin(rad) * 0.500 * armLen;
+      const dispY = Math.cos(rad) * armLen;
+      lms[13] = { x: 0.43 - dispSide * 0.5, y: shoulderY + dispY * 0.5, z: dispFront * 0.5, visibility: 0.98 };
+      lms[15] = { x: 0.43 - dispSide, y: shoulderY + dispY, z: dispFront, visibility: 0.98 };
+      lms[14] = { x: 0.57 + dispSide * 0.5, y: shoulderY + dispY * 0.5, z: dispFront * 0.5, visibility: 0.98 };
+      lms[16] = { x: 0.57 + dispSide, y: shoulderY + dispY, z: dispFront, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 4C: WALL ANGELS (SCAPULAR RETRACTION W TO Y)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'wall_angels' || name.includes('wall angels')) {
+      // Coronal plane slide from 'W' (elbows at 90°) to 'Y' overhead reach
+      const startReach = 0.08;
+      const maxReach = isFault ? 0.16 : 0.28;
+      const reach = startReach + cycle * (maxReach - startReach);
+      lms[11].z = 0.01; lms[12].z = 0.01;
+      const elbowY = shoulderY + 0.06 - cycle * 0.10;
+      const elbowX = 0.32 - cycle * 0.04;
+      lms[13] = { x: elbowX, y: elbowY, z: 0.02, visibility: 0.98 };
+      lms[14] = { x: 1 - elbowX, y: elbowY, z: 0.02, visibility: 0.98 };
+      const handY = shoulderY - reach;
+      const handX = 0.30 - cycle * 0.06;
+      lms[15] = { x: handX, y: handY, z: 0.02, visibility: 0.98 };
+      lms[16] = { x: 1 - handX, y: handY, z: 0.02, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 4D: SHOULDER LATERAL RAISE / ABDUCTION
     // ─────────────────────────────────────────────────────────────
     } else if (mType === 'lateral_raise' || mType === 'abduction' || mp.armPattern === 'lateral_raise' || (joint === 'SHOULDER' && !isFlexion && (customDef.name || '').toLowerCase().includes('lateral'))) {
       const maxAbduction = isFault ? (mp.faultAngle || 122) : (mp.targetAngle || customDef.defaultTarget || 85);
@@ -731,12 +927,10 @@ export class MotionSimulator {
       const abductionDeg = startDeg + cycle * (maxAbduction - startDeg);
       const rad = (abductionDeg * Math.PI) / 180;
       const armLen = 0.23;
-
       const scaptionZ = Math.sin(rad) * 0.04;
       const hikeY = isFault ? (-0.04 * cycle) : 0;
       lms[11].y = shoulderY + hikeY;
       lms[12].y = shoulderY + hikeY;
-
       lms[13] = { x: 0.43 - Math.sin(rad) * (armLen * 0.5), y: lms[11].y + Math.cos(rad) * (armLen * 0.5), z: scaptionZ * 0.5, visibility: 0.98 };
       lms[15] = { x: 0.43 - Math.sin(rad) * armLen, y: lms[11].y + Math.cos(rad) * armLen, z: scaptionZ, visibility: 0.98 };
       lms[14] = { x: 0.57 + Math.sin(rad) * (armLen * 0.5), y: lms[12].y + Math.cos(rad) * (armLen * 0.5), z: scaptionZ * 0.5, visibility: 0.98 };
@@ -752,61 +946,80 @@ export class MotionSimulator {
       const deg = startDeg + cycle * (maxFlexDeg - startDeg);
       const rad = (deg * Math.PI) / 180;
       const leanBackZ = isFault ? (-0.18 * cycle) : 0;
-
       lms[11].z = leanBackZ;
       lms[12].z = leanBackZ;
-
       const armY = shoulderY + Math.cos(rad) * armLen;
       const armZ = Math.sin(rad) * armLen;
-
       lms[13] = { x: 0.43, y: shoulderY + Math.cos(rad) * (armLen * 0.5), z: armZ * 0.5, visibility: 0.98 };
       lms[15] = { x: 0.43, y: armY, z: armZ, visibility: 0.98 };
       lms[14] = { x: 0.57, y: shoulderY + Math.cos(rad) * (armLen * 0.5), z: armZ * 0.5, visibility: 0.98 };
       lms[16] = { x: 0.57, y: armY, z: armZ, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN 7: ROMANIAN DEADLIFT / HIP HINGE
+    // PATTERN 7A: BARBELL GOOD MORNING (DEEP HORIZONTAL HINGE)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'good_morning' || name.includes('good morning')) {
+      const hipZ = -0.28 * cycle;
+      const torsoLeanZ = 0.42 * cycle;
+      lms[23] = { x: 0.44, y: hipY + 0.04 * cycle, z: hipZ, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: hipY + 0.04 * cycle, z: hipZ, visibility: 0.98 };
+      lms[11] = { x: 0.43, y: shoulderY + 0.24 * cycle, z: torsoLeanZ, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY + 0.24 * cycle, z: torsoLeanZ, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.16 + 0.24 * cycle, z: torsoLeanZ, visibility: 0.98 };
+      // Hands behind neck on barbell
+      lms[13] = { x: 0.37, y: shoulderY + 0.22 * cycle, z: torsoLeanZ - 0.04, visibility: 0.98 };
+      lms[14] = { x: 0.63, y: shoulderY + 0.22 * cycle, z: torsoLeanZ - 0.04, visibility: 0.98 };
+      lms[15] = { x: 0.40, y: shoulderY + 0.20 * cycle, z: torsoLeanZ - 0.02, visibility: 0.98 };
+      lms[16] = { x: 0.60, y: shoulderY + 0.20 * cycle, z: torsoLeanZ - 0.02, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 7B: ROMANIAN DEADLIFT / CONVENTIONAL DEADLIFT
     // ─────────────────────────────────────────────────────────────
     } else if (mType === 'hinge_deadlift' || mType === 'hinge' || joint === 'HIP') {
       const hipDrop = (mp.hipDropY !== undefined ? mp.hipDropY : 0.08) * cycle;
       const hipZ = isFault ? (-0.12 * cycle) : (mp.hipHingeZ !== undefined ? mp.hipHingeZ * cycle : -0.24 * cycle);
       const torsoLeanZ = isFault ? (0.42 * cycle) : (0.24 * cycle);
-
       lms[23] = { x: 0.44, y: hipY + hipDrop, z: hipZ, visibility: 0.98 };
       lms[24] = { x: 0.56, y: hipY + hipDrop, z: hipZ, visibility: 0.98 };
-
       lms[11] = { x: 0.43, y: shoulderY + 0.18 * cycle, z: torsoLeanZ, visibility: 0.98 };
       lms[12] = { x: 0.57, y: shoulderY + 0.18 * cycle, z: torsoLeanZ, visibility: 0.98 };
       lms[0]  = { x: 0.50, y: 0.16 + 0.18 * cycle, z: torsoLeanZ, visibility: 0.98 };
-
-      // Soft knees maintained
       const kneeZ = isFault ? (0.16 * cycle) : (0.04 * cycle);
       lms[25] = { x: 0.43, y: kneeY - 0.02 * cycle, z: kneeZ, visibility: 0.98 };
       lms[26] = { x: 0.57, y: kneeY - 0.02 * cycle, z: kneeZ, visibility: 0.98 };
-
-      // Arms skimming down shins
       lms[13] = { x: 0.42, y: 0.48 + 0.16 * cycle, z: torsoLeanZ * 0.7, visibility: 0.98 };
       lms[14] = { x: 0.58, y: 0.48 + 0.16 * cycle, z: torsoLeanZ * 0.7, visibility: 0.98 };
       lms[15] = { x: 0.42, y: 0.68 + 0.15 * cycle, z: torsoLeanZ * 0.8, visibility: 0.98 };
       lms[16] = { x: 0.58, y: 0.68 + 0.15 * cycle, z: torsoLeanZ * 0.8, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN 8: BULGARIAN SPLIT SQUAT / LUNGES
+    // PATTERN 8A: REVERSE LUNGE
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'reverse_lunge') {
+      const drop = cycle * 0.20;
+      lms[23] = { x: 0.44, y: hipY + drop, z: -0.04 * cycle, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: hipY + drop, z: -0.04 * cycle, visibility: 0.98 };
+      lms[11] = { x: 0.43, y: shoulderY + drop, z: 0.02, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY + drop, z: 0.02, visibility: 0.98 };
+      // Front left foot stays planted, knee bends to 90°
+      lms[25] = { x: 0.43, y: kneeY + drop * 0.4, z: 0.12 * cycle, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: ankleY, z: 0, visibility: 0.98 };
+      // Rear right leg steps backward in Z and knee drops to floor
+      lms[26] = { x: 0.57, y: kneeY + drop * 0.9, z: -0.26 * cycle, visibility: 0.98 };
+      lms[28] = { x: 0.57, y: ankleY, z: -0.32 * cycle, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 8B: FORWARD LUNGE / BULGARIAN SPLIT SQUAT
     // ─────────────────────────────────────────────────────────────
     } else if (mType === 'lunge' || (customDef.name && (customDef.name.toLowerCase().includes('lunge') || customDef.name.toLowerCase().includes('split')))) {
       const squatDrop = cycle * 0.22;
       const torsoLeanZ = isFault ? (0.28 * cycle) : (0.03 * cycle);
       const valgusX = isFault ? (0.05 * cycle) : 0;
-
       lms[23] = { x: 0.44, y: hipY + squatDrop, z: -0.06 * cycle, visibility: 0.98 };
       lms[24] = { x: 0.56, y: hipY + squatDrop, z: -0.06 * cycle, visibility: 0.98 };
-
       lms[11] = { x: 0.43, y: shoulderY + squatDrop, z: torsoLeanZ, visibility: 0.98 };
       lms[12] = { x: 0.57, y: shoulderY + squatDrop, z: torsoLeanZ, visibility: 0.98 };
-
-      // Lead left leg bends deep
       lms[25] = { x: 0.43 + valgusX, y: kneeY + squatDrop * 0.45, z: 0.14 * cycle, visibility: 0.98 };
-      // Rear right leg trails
       lms[26] = { x: 0.57, y: kneeY + squatDrop * 0.85, z: -0.22 * cycle, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
@@ -815,7 +1028,6 @@ export class MotionSimulator {
     } else if (mType === 'calf_raise' || (customDef.name && customDef.name.toLowerCase().includes('calf'))) {
       const elevation = cycle * 0.08;
       const swayZ = isFault ? (0.12 * cycle) : 0;
-
       lms[0].y  = 0.16 - elevation;
       lms[11].y = shoulderY - elevation;
       lms[12].y = shoulderY - elevation;
@@ -823,64 +1035,99 @@ export class MotionSimulator {
       lms[24].y = hipY - elevation;
       lms[25].y = kneeY - elevation;
       lms[26].y = kneeY - elevation;
-
       lms[0].z  = swayZ;
       lms[11].z = swayZ;
       lms[12].z = swayZ;
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN 10: SEATED KNEE EXTENSION
+    // PATTERN 10A: TERMINAL KNEE EXTENSION (TKE LOCKOUT)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'tke' || name.includes('tke') || name.includes('terminal knee')) {
+      // Standing upright. Left leg planted straight.
+      // Right leg starts with soft knee (145° flexion), then drives back into 178° lockout
+      const softKneeZ = 0.12 * (1 - cycle);
+      const kneeDipY = 0.03 * (1 - cycle);
+      lms[26] = { x: 0.57, y: kneeY + kneeDipY, z: softKneeZ, visibility: 0.98 };
+      lms[25] = { x: 0.43, y: kneeY, z: 0, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: ankleY, z: 0, visibility: 0.98 };
+      lms[28] = { x: 0.57, y: ankleY, z: 0, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 10B: FUNCTIONAL MINI SQUAT (0-45° SHALLOW DIP)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'mini_squat' || name.includes('mini squat')) {
+      const shallowDrop = cycle * 0.08; // shallow 30°-35° knee dip
+      lms[23] = { x: 0.44, y: hipY + shallowDrop, z: -0.04 * cycle, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: hipY + shallowDrop, z: -0.04 * cycle, visibility: 0.98 };
+      lms[11] = { x: 0.43, y: shoulderY + shallowDrop * 0.8, z: 0.02, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY + shallowDrop * 0.8, z: 0.02, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.16 + shallowDrop * 0.8, z: 0.02, visibility: 0.98 };
+      lms[25] = { x: 0.43, y: kneeY + shallowDrop * 0.4, z: 0.05 * cycle, visibility: 0.98 };
+      lms[26] = { x: 0.57, y: kneeY + shallowDrop * 0.4, z: 0.05 * cycle, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 10C: SEATED KNEE EXTENSION
     // ─────────────────────────────────────────────────────────────
     } else if (mType === 'seated_leg_ext' || mp.posture === 'seated' || (customDef.name && customDef.name.toLowerCase().includes('seated'))) {
       const seatedHipY = 0.56;
       const seatedKneeY = 0.56;
       const slumpZ = isFault ? (-0.14 * cycle) : 0;
-
       lms[23] = { x: 0.44, y: seatedHipY, z: -0.18 + slumpZ * 0.5, visibility: 0.98 };
       lms[24] = { x: 0.56, y: seatedHipY, z: -0.18 + slumpZ * 0.5, visibility: 0.98 };
       lms[11] = { x: 0.43, y: 0.30, z: -0.16 + slumpZ, visibility: 0.98 };
       lms[12] = { x: 0.57, y: 0.30, z: -0.16 + slumpZ, visibility: 0.98 };
       lms[0]  = { x: 0.50, y: 0.18, z: -0.16 + slumpZ, visibility: 0.98 };
-
       lms[25] = { x: 0.44, y: seatedKneeY, z: 0.06, visibility: 0.98 };
       lms[26] = { x: 0.56, y: seatedKneeY, z: 0.06, visibility: 0.98 };
-
       const maxExtDeg = isFault ? 176 : (mp.targetAngle || 155);
       const startDeg = mp.startAngle || 90;
       const extAngleDeg = startDeg + cycle * (maxExtDeg - startDeg);
       const extRad = (extAngleDeg * Math.PI) / 180;
       const shinLen = 0.28;
-
       const shinRelY = Math.sin(Math.PI - extRad) * shinLen;
       const shinRelZ = Math.cos(Math.PI - extRad) * shinLen;
-
       lms[27] = { x: 0.44, y: seatedKneeY + shinRelY, z: 0.06 + shinRelZ, visibility: 0.98 };
       lms[28] = { x: 0.56, y: seatedKneeY + shinRelY, z: 0.06 + shinRelZ, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN 11: BILATERAL SQUAT (DEFAULT LOWER BODY)
+    // PATTERN 11A: SUMO SQUAT (WIDE STANCE & OUTWARD KNEE TRACKING)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'sumo_squat' || name.includes('sumo')) {
+      const squatDrop = cycle * 0.20;
+      lms[23] = { x: 0.44, y: hipY + squatDrop, z: -0.03 * cycle, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: hipY + squatDrop, z: -0.03 * cycle, visibility: 0.98 };
+      // Very upright torso
+      lms[11] = { x: 0.43, y: shoulderY + squatDrop * 0.8, z: 0.01, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY + squatDrop * 0.8, z: 0.01, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.16 + squatDrop * 0.8, z: 0.01, visibility: 0.98 };
+      // Wide feet
+      lms[27] = { x: 0.36, y: ankleY, z: 0, visibility: 0.98 };
+      lms[28] = { x: 0.64, y: ankleY, z: 0, visibility: 0.98 };
+      // Knees flare wide outward tracking over toes
+      const kneeFlare = cycle * 0.06;
+      lms[25] = { x: 0.38 - kneeFlare, y: kneeY + squatDrop * 0.4, z: 0.08 * cycle, visibility: 0.98 };
+      lms[26] = { x: 0.62 + kneeFlare, y: kneeY + squatDrop * 0.4, z: 0.08 * cycle, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 11B: BILATERAL SQUAT (DEFAULT LOWER BODY)
     // ─────────────────────────────────────────────────────────────
     } else {
       const squatDrop = cycle * 0.22;
       const hipZ = isFault ? (-0.22 * cycle) : (-0.04 * cycle);
       lms[23] = { x: 0.44, y: hipY + squatDrop, z: hipZ, visibility: 0.98 };
       lms[24] = { x: 0.56, y: hipY + squatDrop, z: hipZ, visibility: 0.98 };
-
       const trunkLeanZ = isFault ? (0.28 * cycle) : (0.01 * cycle);
       const torsoY = shoulderY + squatDrop * 0.7;
       lms[11] = { x: 0.43, y: torsoY, z: trunkLeanZ, visibility: 0.98 };
       lms[12] = { x: 0.57, y: torsoY, z: trunkLeanZ, visibility: 0.98 };
       lms[0]  = { x: 0.50, y: 0.16 + squatDrop * 0.7, z: trunkLeanZ, visibility: 0.98 };
-
       const kneeZ = 0.10 * cycle;
       const kneeYDrop = kneeY + squatDrop * 0.35;
       const valgusShift = isFault ? (cycle * 0.08) : 0;
       lms[25] = { x: 0.43 + valgusShift, y: kneeYDrop, z: kneeZ, visibility: 0.98 };
       lms[26] = { x: 0.57 - valgusShift, y: kneeYDrop, z: kneeZ, visibility: 0.98 };
-
       lms[27] = { x: 0.43, y: ankleY, z: 0, visibility: 0.98 };
       lms[28] = { x: 0.57, y: ankleY, z: 0, visibility: 0.98 };
-
       const armFloatZ = 0.12 * cycle;
       lms[13] = { x: 0.42, y: 0.44 + squatDrop * 0.3, z: armFloatZ * 0.4, visibility: 0.98 };
       lms[14] = { x: 0.58, y: 0.44 + squatDrop * 0.3, z: armFloatZ * 0.4, visibility: 0.98 };
@@ -900,12 +1147,46 @@ export class MotionSimulator {
     const isFlex = cd.isFlexion !== false;
     const target = cd.defaultTarget || (isFlex ? 80 : 160);
 
-    if (name.includes('bird dog') || name.includes('cat cow') || name.includes('cat-cow') || id.includes('bird_dog') || id.includes('cat_cow')) {
+    if (name.includes('pendulum') || id.includes('pendulum')) {
+      return { posture: 'hinged', movementType: 'pendulum', primaryJoint: 'SHOULDER', startAngle: 15, targetAngle: 40, tempoSpeed: 1.1 };
+    } else if (name.includes('scaption') || id.includes('scaption') || name.includes('full can')) {
+      return { posture: 'standing', movementType: 'scaption', primaryJoint: 'SHOULDER', startAngle: 18, targetAngle: 90, tempoSpeed: 1.2 };
+    } else if (name.includes('wall angel') || id.includes('wall_angel')) {
+      return { posture: 'standing', movementType: 'wall_angels', primaryJoint: 'SHOULDER', startAngle: 90, targetAngle: 150, tempoSpeed: 1.1 };
+    } else if (name.includes('clamshell') || id.includes('clamshell')) {
+      return { posture: 'side_lying', movementType: 'clamshell', primaryJoint: 'HIP', startAngle: 20, targetAngle: 45, tempoSpeed: 1.2 };
+    } else if (name.includes('pelvic tilt') || id.includes('pelvic_tilt')) {
+      return { posture: 'supine', movementType: 'pelvic_tilt', primaryJoint: 'HIP', startAngle: 165, targetAngle: 178, tempoSpeed: 1.2 };
+    } else if (name.includes('crunch') || id.includes('crunch')) {
+      return { posture: 'supine', movementType: 'crunch', primaryJoint: 'HIP', startAngle: 165, targetAngle: 135, tempoSpeed: 1.3 };
+    } else if (name.includes('ankle pump') || id.includes('ankle_pump')) {
+      return { posture: 'supine', movementType: 'ankle_pump', primaryJoint: 'KNEE', startAngle: 155, targetAngle: 180, tempoSpeed: 1.2 };
+    } else if (name.includes('tke') || id.includes('tke') || name.includes('terminal knee')) {
+      return { posture: 'standing', movementType: 'tke', primaryJoint: 'KNEE', startAngle: 145, targetAngle: 178, tempoSpeed: 1.3 };
+    } else if (name.includes('mini squat') || id.includes('mini_squat')) {
+      return { posture: 'standing', movementType: 'mini_squat', primaryJoint: 'KNEE', startAngle: 175, targetAngle: 145, tempoSpeed: 1.3 };
+    } else if (name.includes('sumo') || id.includes('sumo')) {
+      return { posture: 'standing', movementType: 'sumo_squat', primaryJoint: 'KNEE', startAngle: 175, targetAngle: 90, tempoSpeed: 1.4 };
+    } else if (name.includes('good morning') || id.includes('good_morning')) {
+      return { posture: 'hinged', movementType: 'good_morning', primaryJoint: 'HIP', startAngle: 175, targetAngle: 80, tempoSpeed: 1.3 };
+    } else if (name.includes('reverse lunge') || id.includes('reverse_lunge')) {
+      return { posture: 'lunge', movementType: 'reverse_lunge', primaryJoint: 'KNEE', startAngle: 170, targetAngle: 85, tempoSpeed: 1.4 };
+    } else if (name.includes('diamond') || id.includes('diamond')) {
+      return { posture: 'plank', movementType: 'diamond_pushup', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 75, tempoSpeed: 1.3 };
+    } else if (name.includes('floor press') || id.includes('floor_press')) {
+      return { posture: 'supine', movementType: 'floor_press', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 88, tempoSpeed: 1.3 };
+    } else if (name.includes('arnold') || id.includes('arnold')) {
+      return { posture: 'standing', movementType: 'arnold_press', primaryJoint: 'ELBOW', startAngle: 80, targetAngle: 168, tempoSpeed: 1.3 };
+    } else if (name.includes('hammer') || id.includes('hammer')) {
+      return { posture: 'standing', movementType: 'hammer_curl', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 50, tempoSpeed: 1.4 };
+    } else if (name.includes('chin-up') || name.includes('chinup') || id.includes('chinup')) {
+      return { posture: 'standing', movementType: 'chinup', armPattern: 'pullup', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 55, tempoSpeed: 1.3 };
+    } else if (name.includes('bird dog') || name.includes('cat cow') || name.includes('cat-cow') || id.includes('bird_dog') || id.includes('cat_cow')) {
       const isCat = name.includes('cat');
       return { posture: 'quadruped', movementType: isCat ? 'spinal_flexion' : 'quadruped_reach', primaryJoint: 'HIP', startAngle: isCat ? 160 : 120, targetAngle: isCat ? 135 : 175, tempoSpeed: 1.2 };
     } else if (name.includes('mckenzie') || name.includes('cobra') || name.includes('prone') || name.includes('superman')) {
       return { posture: 'prone', movementType: 'prone_extension', armPattern: 'chest_push', primaryJoint: 'ELBOW', startAngle: 90, targetAngle: target || 160, tempoSpeed: 1.2 };
-    } else if (name.includes('bridge') || name.includes('thrust') || name.includes('pelvic')) {
+    } else if (name.includes('bridge') || name.includes('thrust')) {
       return { posture: 'supine', movementType: 'bridge', primaryJoint: 'HIP', startAngle: 110, targetAngle: target || 170, tempoSpeed: 1.2 };
     } else if (name.includes('slr') || name.includes('straight leg')) {
       return { posture: 'supine', movementType: 'slr', primaryJoint: 'HIP', startAngle: 175, targetAngle: target || 135, tempoSpeed: 1.2 };
@@ -913,11 +1194,11 @@ export class MotionSimulator {
       return { posture: 'plank', movementType: 'pushup', armPattern: 'pushup', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: target || 80, tempoSpeed: 1.3 };
     } else if (name.includes('plank') || id.includes('plank')) {
       return { posture: 'plank', movementType: 'plank', armPattern: 'plank', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 165, tempoSpeed: 1.0 };
-    } else if (name.includes('bench') || name.includes('chest press') || name.includes('floor press')) {
+    } else if (name.includes('bench') || name.includes('chest press')) {
       return { posture: 'supine', movementType: 'press_horizontal', armPattern: 'bench_press', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: target || 80, tempoSpeed: 1.3 };
     } else if (name.includes('row') || name.includes('pull') && !name.includes('up')) {
       return { posture: 'hinged', movementType: 'row', armPattern: 'row_pull', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: target || 65, tempoSpeed: 1.3 };
-    } else if (name.includes('pull-up') || name.includes('pullup') || name.includes('chin-up') || name.includes('chinup')) {
+    } else if (name.includes('pull-up') || name.includes('pullup')) {
       return { posture: 'standing', movementType: 'pullup', armPattern: 'pullup', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: target || 65, tempoSpeed: 1.3 };
     } else if (name.includes('dip')) {
       return { posture: 'standing', movementType: 'dip', armPattern: 'dip', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: target || 85, tempoSpeed: 1.3 };

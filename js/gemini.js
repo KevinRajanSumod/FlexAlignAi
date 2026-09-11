@@ -9,22 +9,22 @@ import { synthesizeExerciseFromQuery } from './exercises.js';
 export class GeminiCoach {
   constructor() {
     const _d = (s) => (typeof atob === 'function' ? atob(s) : Buffer.from(s, 'base64').toString('utf8'));
-    this.defaultApiKey = _d("QVEuQWI4Uk42THdtZTZ4d3VESXZiM3J6SXUtZjVSZjlqWFRNeklIaktUZmRXOWJYUTdIWkE=");
-    // If localStorage has the old exhausted key, clear it so new active key is used!
-    const savedKey = localStorage.getItem('flexalign_gemini_api_key');
-    const staleKey = _d("QVEuQWI4Uk42SkEyc015TzJuOW5peURXWWNVWVh3akxoM0FFc1ZwRWp2dWxIcTl2ZTZLMlE=");
-    if (savedKey === staleKey) {
-      localStorage.removeItem('flexalign_gemini_api_key');
+    this.defaultApiKey = _d("QVEuQWI4Uk42TFQ1dFpaUW5FN0Q4eWtpQU51RjdFLWROWlR4bmRwd3FoaHZlUHFLZFhiYmc=");
+    // If localStorage has an old key, replace it with the new active key
+    const savedKey = typeof localStorage !== 'undefined' ? localStorage.getItem('flexalign_gemini_api_key') : null;
+    if (!savedKey || savedKey.startsWith('AQ.Ab8RN6Lwme') || savedKey.startsWith('AQ.Ab8RN6JA2s')) {
+      if (typeof localStorage !== 'undefined') localStorage.setItem('flexalign_gemini_api_key', this.defaultApiKey);
       this.apiKey = this.defaultApiKey;
     } else {
       this.apiKey = savedKey || this.defaultApiKey;
     }
     
-    // Priority order of models (tested active and verified with Generative Language API)
+    // Priority order of active models verified with Generative Language API
     this.candidateModels = [
-      "gemini-3.1-flash-lite",
-      "gemini-flash-latest",
+      "gemini-2.5-flash",
       "gemini-2.5-flash-lite",
+      "gemini-flash-latest",
+      "gemini-3.1-flash-lite",
       "gemini-3.7-flash"
     ];
     this.model = this.candidateModels[0];
@@ -750,5 +750,51 @@ INSTRUCTIONS:
 
     copy.isCustom = true;
     return copy;
+  }
+
+  /**
+   * Directly ask Gemini API to generate an authentic 3D kinesiology motion profile
+   * for any exercise name, returning posture, movement type, angles, and trajectory details.
+   */
+  async synthesizeBiomechanicalMotion(exerciseName, mode = 'gym') {
+    const prompt = `You are a clinical kinesiologist and 3D biomechanics specialist.
+Generate a precise 3D kinematic motion profile for the exercise: "${exerciseName}" (${mode} mode).
+Output ONLY raw JSON with:
+{
+  "posture": "standing" | "supine" | "prone" | "quadruped" | "side_lying" | "seated" | "hinged" | "lunge" | "plank",
+  "movementType": string (e.g. "pendulum", "scaption", "wall_angels", "clamshell", "heel_slide", "ankle_pump", "chin_tuck", "seated_rotation", "wrist_flexion", "shrug", "face_pull", "rear_delt_fly", "squat", "curl", "press", etc.),
+  "primaryJoint": "KNEE" | "HIP" | "SHOULDER" | "ELBOW" | "WRIST" | "ANKLE" | "NECK" | "SPINE",
+  "startAngle": number (degrees, 0-180),
+  "targetAngle": number (degrees, 0-180),
+  "isFlexion": boolean,
+  "tempoSpeed": number (1.0 - 1.8),
+  "armPattern": string,
+  "legPattern": string
+}`;
+
+    const requestBody = {
+      system_instruction: { parts: [{ text: "You are an expert biomechanics kinematics API. Output ONLY a valid JSON object." }] },
+      contents: [{ role: 'user', parts: [{ text: prompt }] }]
+    };
+
+    for (const currentModel of this.candidateModels) {
+      try {
+        const endpoint = this.getEndpoint(currentModel);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+        if (!response.ok) continue;
+        const data = await response.json();
+        const rawText = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || '';
+        const cleaned = rawText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (parsed && parsed.posture) return parsed;
+      } catch (err) {
+        console.warn(`[GeminiCoach] Motion synthesis attempt failed with ${currentModel}:`, err);
+      }
+    }
+    return null;
   }
 }

@@ -999,6 +999,12 @@ export class FlexAlignApp {
   }
 
   setMode(mode) {
+    // If streams or 3D simulation are running, cleanly stop them before swapping modes
+    // so no orphaned simulation loops or background motion persist behind the new mode splash
+    if (this.isSimulationRunning || this.isCameraRunning || this.isStreaming) {
+      this.stopStreams(true);
+    }
+
     this.evaluator.setMode(mode);
     const gymBtn = document.getElementById('gymModeBtn');
     const ptBtn = document.getElementById('ptModeBtn');
@@ -1279,10 +1285,11 @@ export class FlexAlignApp {
     this.animFrameId = requestAnimationFrame(step);
   }
 
-  stopStreams() {
+  stopStreams(silent = false) {
     // Set flags FIRST so any in-flight rAF callbacks bail immediately
     this.isCameraRunning = false;
     this.isSimulationRunning = false;
+    this.isStreaming = false;
 
     // Cancel any pending animation frame
     if (this.animFrameId) {
@@ -1358,7 +1365,9 @@ export class FlexAlignApp {
       this.dismissCoachTip();
     }
 
-    this.showToast('Stream stopped.', '⏹');
+    if (!silent) {
+      this.showToast('Stream stopped.', '⏹');
+    }
   }
 
   handleVideoUpload(e) {

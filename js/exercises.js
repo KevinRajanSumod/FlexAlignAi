@@ -49,7 +49,7 @@ export const GYM_EXERCISES = {
     tip: '⚡ <strong>Sumo Squat:</strong> Set feet 1.5x shoulder-width, toes turned 30-45° out. Push knees out tracking over second toes.',
     defaultTarget: 90,
     isFlexion: true,
-    motionProfile: { posture: 'standing', movementType: 'squat', primaryJoint: 'KNEE', startAngle: 175, targetAngle: 90, tempoSpeed: 1.4 }
+    motionProfile: { posture: 'standing', movementType: 'sumo_squat', primaryJoint: 'KNEE', startAngle: 175, targetAngle: 90, tempoSpeed: 1.4 }
   },
 
   // ── POSTERIOR CHAIN & HINGES ──
@@ -98,7 +98,7 @@ export const GYM_EXERCISES = {
     isFlexion: true,
     repFooter: 'Stand ➔ Horizontal Hinge ➔ Drive Hips',
     tip: '⚡ <strong>Good Morning:</strong> Bar on upper traps. Hinge hips back until torso is near parallel. Keep lats packed tight.',
-    motionProfile: { posture: 'hinged', movementType: 'hinge_deadlift', primaryJoint: 'HIP', startAngle: 175, targetAngle: 80, tempoSpeed: 1.3 }
+    motionProfile: { posture: 'hinged', movementType: 'good_morning', primaryJoint: 'HIP', startAngle: 175, targetAngle: 80, tempoSpeed: 1.3 }
   },
   gym_glute_bridge: {
     id: 'gym_glute_bridge',
@@ -160,7 +160,7 @@ export const GYM_EXERCISES = {
     isFlexion: true,
     repFooter: 'Step Back ➔ Controlled Drop ➔ Drive Front Heel',
     tip: '⚡ <strong>Reverse Lunge:</strong> Step backward onto ball of foot. Lower gently until back knee taps floor, then drive front heel to return.',
-    motionProfile: { posture: 'lunge', movementType: 'lunge', primaryJoint: 'KNEE', startAngle: 170, targetAngle: 85, tempoSpeed: 1.4 }
+    motionProfile: { posture: 'lunge', movementType: 'reverse_lunge', primaryJoint: 'KNEE', startAngle: 170, targetAngle: 85, tempoSpeed: 1.4 }
   },
 
   // ── CHEST & HORIZONTAL PUSH ──
@@ -194,7 +194,7 @@ export const GYM_EXERCISES = {
     isFlexion: true,
     repFooter: 'Hands Diamond ➔ Touch Sternum ➔ Lockout',
     tip: '💪 <strong>Diamond Push-Up:</strong> Form triangle with thumbs and index fingers beneath sternum. Keep body rigid and pin elbows close.',
-    motionProfile: { posture: 'plank', movementType: 'pushup', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 75, tempoSpeed: 1.3 }
+    motionProfile: { posture: 'plank', movementType: 'diamond_pushup', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 75, tempoSpeed: 1.3 }
   },
   gym_bench_press: {
     id: 'gym_bench_press',
@@ -224,7 +224,7 @@ export const GYM_EXERCISES = {
     isFlexion: true,
     repFooter: 'Floor Setup ➔ Press to Lockout ➔ Control Tap',
     tip: '⚡ <strong>Floor Press:</strong> Triceps pause lightly on floor to eliminate shoulder hyperextension while building explosive lockout.',
-    motionProfile: { posture: 'supine', movementType: 'press_horizontal', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 88, tempoSpeed: 1.3 }
+    motionProfile: { posture: 'supine', movementType: 'floor_press', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 88, tempoSpeed: 1.3 }
   },
 
   // ── SHOULDERS & VERTICAL PRESS ──
@@ -256,7 +256,7 @@ export const GYM_EXERCISES = {
     isFlexion: false,
     repFooter: 'Palms In ➔ Rotate & Press ➔ Lockout',
     tip: '🎯 <strong>Arnold Press:</strong> Start with palms facing chest. Rotate wrists outward as dumbbells ascend into complete overhead lockout.',
-    motionProfile: { posture: 'standing', movementType: 'press_overhead', primaryJoint: 'ELBOW', startAngle: 80, targetAngle: 168, tempoSpeed: 1.3 }
+    motionProfile: { posture: 'standing', movementType: 'arnold_press', primaryJoint: 'ELBOW', startAngle: 80, targetAngle: 168, tempoSpeed: 1.3 }
   },
   gym_lateral_raise: {
     id: 'gym_lateral_raise',
@@ -318,7 +318,7 @@ export const GYM_EXERCISES = {
     isFlexion: true,
     repFooter: 'Hang ➔ Supinated Drive ➔ Chin Over',
     tip: '💪 <strong>Chin-Up:</strong> Supinated underhand grip maximizes biceps recruitment. Pull all the way until chin cleanly clears the bar.',
-    motionProfile: { posture: 'standing', movementType: 'pullup', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 55, tempoSpeed: 1.3 }
+    motionProfile: { posture: 'standing', movementType: 'chinup', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 55, tempoSpeed: 1.3 }
   },
   gym_bent_row: {
     id: 'gym_bent_row',
@@ -348,7 +348,7 @@ export const GYM_EXERCISES = {
     isFlexion: true,
     repFooter: 'Stretch at Bottom ➔ Row to Pocket ➔ Control',
     tip: '⚡ <strong>Dumbbell Row:</strong> Pull dumbbell in slight arc toward hip pocket rather than straight up to fully engage latissimus dorsi.',
-    motionProfile: { posture: 'hinged', movementType: 'row', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 65, tempoSpeed: 1.3 }
+    motionProfile: { posture: 'hinged', movementType: 'dumbbell_row', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 65, tempoSpeed: 1.3 }
   },
 
   // ── ARMS & ISOLATION ──
@@ -380,7 +380,7 @@ export const GYM_EXERCISES = {
     isFlexion: true,
     repFooter: 'Palms In ➔ Curl Up ➔ Controlled Lower',
     tip: '💪 <strong>Hammer Curl:</strong> Maintain neutral grip (palms facing each other) throughout the entire excursion to build brachialis thickness.',
-    motionProfile: { posture: 'standing', movementType: 'curl', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 50, tempoSpeed: 1.4 }
+    motionProfile: { posture: 'standing', movementType: 'hammer_curl', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 50, tempoSpeed: 1.4 }
   },
   gym_extension: {
     id: 'gym_extension',
@@ -442,7 +442,7 @@ export const GYM_EXERCISES = {
     isFlexion: false,
     repFooter: 'Rigid Core ➔ Glutes Clamped ➔ Static Hold',
     tip: '⚡ <strong>Plank Standard:</strong> Press floor away through hands. Keep pelvis tucked with posterior tilt to lock abdominal wall.',
-    motionProfile: { posture: 'plank', movementType: 'pushup', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 165, tempoSpeed: 1.0 }
+    motionProfile: { posture: 'plank', movementType: 'plank', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 165, tempoSpeed: 1.0 }
   },
   gym_crunch: {
     id: 'gym_crunch',
@@ -457,7 +457,7 @@ export const GYM_EXERCISES = {
     isFlexion: true,
     repFooter: 'Floor Setup ➔ Curl Ribs to Pelvis ➔ Return',
     tip: '⚡ <strong>Crunch:</strong> Exhale forcefully and curl ribcage down toward hips. Guard against pulling on the neck with hands.',
-    motionProfile: { posture: 'supine', movementType: 'bridge', primaryJoint: 'HIP', startAngle: 165, targetAngle: 135, tempoSpeed: 1.3 }
+    motionProfile: { posture: 'supine', movementType: 'crunch', primaryJoint: 'HIP', startAngle: 165, targetAngle: 135, tempoSpeed: 1.3 }
   }
 };
 
@@ -491,7 +491,7 @@ export const PT_EXERCISES = {
     defaultSafeThreshold: 35,
     repFooter: 'Hinged Stance ➔ Gentle Passive Circle ➔ Rest',
     tip: '💡 <strong>Codman Pendulum:</strong> Lean forward supporting torso on table. Let affected arm hang completely limp, using torso momentum to swing.',
-    motionProfile: { posture: 'hinged', movementType: 'hinge_deadlift', primaryJoint: 'SHOULDER', startAngle: 15, targetAngle: 40, tempoSpeed: 1.1 }
+    motionProfile: { posture: 'hinged', movementType: 'pendulum', primaryJoint: 'SHOULDER', startAngle: 15, targetAngle: 40, tempoSpeed: 1.1 }
   },
   pt_scaption: {
     id: 'pt_scaption',
@@ -506,7 +506,7 @@ export const PT_EXERCISES = {
     defaultSafeThreshold: 90,
     repFooter: 'Neutral Setup ➔ 30° Scaption Plane ➔ Return',
     tip: '💡 <strong>Full Can Scaption:</strong> Raise arm 30° forward of the body with thumbs pointing up to isolate supraspinatus without impingement.',
-    motionProfile: { posture: 'standing', movementType: 'lateral_raise', primaryJoint: 'SHOULDER', startAngle: 18, targetAngle: 85, tempoSpeed: 1.2 }
+    motionProfile: { posture: 'standing', movementType: 'scaption', primaryJoint: 'SHOULDER', startAngle: 18, targetAngle: 90, tempoSpeed: 1.2 }
   },
   pt_wall_angels: {
     id: 'pt_wall_angels',
@@ -521,7 +521,7 @@ export const PT_EXERCISES = {
     defaultSafeThreshold: 140,
     repFooter: 'W Position ➔ Smooth Slide Up ➔ W Return',
     tip: '💡 <strong>Wall Angels:</strong> Press back, elbows, and wrists flat against wall. Slide arms smoothly upward without arching lumbar spine.',
-    motionProfile: { posture: 'standing', movementType: 'lateral_raise', primaryJoint: 'SHOULDER', startAngle: 45, targetAngle: 140, tempoSpeed: 1.1 }
+    motionProfile: { posture: 'standing', movementType: 'wall_angels', primaryJoint: 'SHOULDER', startAngle: 90, targetAngle: 150, tempoSpeed: 1.1 }
   },
 
   // ── KNEE / ACL / MENISCUS REHAB ──
@@ -553,7 +553,7 @@ export const PT_EXERCISES = {
     defaultSafeThreshold: 175,
     repFooter: 'Soft Knee (150°) ➔ Drive to Full Lockout (175°)',
     tip: '💡 <strong>TKE Protocol:</strong> Band behind knee. Straighten knee into full extension, firing the inner quadriceps (VMO) forcefully.',
-    motionProfile: { posture: 'standing', movementType: 'squat', primaryJoint: 'KNEE', startAngle: 145, targetAngle: 175, tempoSpeed: 1.3 }
+    motionProfile: { posture: 'standing', movementType: 'tke', primaryJoint: 'KNEE', startAngle: 145, targetAngle: 178, tempoSpeed: 1.3 }
   },
   pt_slr: {
     id: 'pt_slr',
@@ -568,7 +568,7 @@ export const PT_EXERCISES = {
     defaultSafeThreshold: 45,
     repFooter: 'Locked Knee Setup ➔ Lift Leg 45° ➔ Slow Return',
     tip: '💡 <strong>Straight Leg Raise:</strong> Lock knee completely straight before lifting heel 12 inches off floor. Avoid quad lag.',
-    motionProfile: { posture: 'supine', movementType: 'bridge', primaryJoint: 'HIP', startAngle: 175, targetAngle: 135, tempoSpeed: 1.2 }
+    motionProfile: { posture: 'supine', movementType: 'slr', primaryJoint: 'HIP', startAngle: 175, targetAngle: 135, tempoSpeed: 1.2 }
   },
   pt_mini_squat: {
     id: 'pt_mini_squat',
@@ -583,7 +583,7 @@ export const PT_EXERCISES = {
     defaultSafeThreshold: 145,
     repFooter: 'Stand Tall ➔ Mini Dip (145°) ➔ Press to Lockout',
     tip: '💡 <strong>Mini Squats:</strong> Controlled shallow knee flexion without exceeding 45° to protect patellar tendon and cartilage graft.',
-    motionProfile: { posture: 'standing', movementType: 'squat', primaryJoint: 'KNEE', startAngle: 175, targetAngle: 145, tempoSpeed: 1.3 }
+    motionProfile: { posture: 'standing', movementType: 'mini_squat', primaryJoint: 'KNEE', startAngle: 175, targetAngle: 145, tempoSpeed: 1.3 }
   },
 
   // ── SPINE, THORACIC & CORE STABILITY ──
@@ -600,7 +600,7 @@ export const PT_EXERCISES = {
     defaultSafeThreshold: 145,
     repFooter: 'All-Fours ➔ Arch Spine (Cat) ➔ Incline Belly (Cow)',
     tip: '💡 <strong>Cat-Cow:</strong> Move vertebra by vertebra. Exhale tucking pelvis and chin into Cat; inhale opening chest into Cow.',
-    motionProfile: { posture: 'quadruped', movementType: 'spinal_flexion', primaryJoint: 'HIP', startAngle: 160, targetAngle: 135, tempoSpeed: 1.1 }
+    motionProfile: { posture: 'quadruped', movementType: 'cat_cow', primaryJoint: 'HIP', startAngle: 160, targetAngle: 135, tempoSpeed: 1.1 }
   },
   pt_bird_dog: {
     id: 'pt_bird_dog',
@@ -615,7 +615,7 @@ export const PT_EXERCISES = {
     defaultSafeThreshold: 175,
     repFooter: 'All-Fours ➔ Reach Opposite Arm & Leg ➔ Return',
     tip: '💡 <strong>Bird Dog:</strong> Reach opposite arm forward and leg backward parallel to floor without twisting pelvis or arching back.',
-    motionProfile: { posture: 'quadruped', movementType: 'quadruped_reach', primaryJoint: 'HIP', startAngle: 120, targetAngle: 175, tempoSpeed: 1.2 }
+    motionProfile: { posture: 'quadruped', movementType: 'bird_dog', primaryJoint: 'HIP', startAngle: 120, targetAngle: 175, tempoSpeed: 1.2 }
   },
   pt_pelvic_tilt: {
     id: 'pt_pelvic_tilt',
@@ -630,7 +630,7 @@ export const PT_EXERCISES = {
     defaultSafeThreshold: 172,
     repFooter: 'Relaxed ➔ Flatten Low Back to Floor ➔ Relax',
     tip: '💡 <strong>Pelvic Tilt:</strong> Contract abdominal wall and roll pelvis backward so lower back flattens completely against floor.',
-    motionProfile: { posture: 'supine', movementType: 'bridge', primaryJoint: 'HIP', startAngle: 165, targetAngle: 175, tempoSpeed: 1.2 }
+    motionProfile: { posture: 'supine', movementType: 'pelvic_tilt', primaryJoint: 'HIP', startAngle: 165, targetAngle: 178, tempoSpeed: 1.2 }
   },
 
   // ── HIP REHABILITATION ──
@@ -647,7 +647,7 @@ export const PT_EXERCISES = {
     defaultSafeThreshold: 45,
     repFooter: 'Feet Together ➔ Open Top Knee ➔ Controlled Close',
     tip: '💡 <strong>Clamshell:</strong> Keep feet glued together and open top knee like a clamshell. Guard against rolling top hip backward.',
-    motionProfile: { posture: 'supine', movementType: 'bridge', primaryJoint: 'HIP', startAngle: 20, targetAngle: 45, tempoSpeed: 1.2 }
+    motionProfile: { posture: 'side_lying', movementType: 'clamshell', primaryJoint: 'HIP', startAngle: 20, targetAngle: 45, tempoSpeed: 1.2 }
   },
 
   // ── ELBOW, WRIST & ANKLE REHAB ──
@@ -694,8 +694,8 @@ export const PT_EXERCISES = {
     defaultSafeThreshold: 175,
     repFooter: 'Pull Toes Up (Dorsiflex) ➔ Point Toes Down',
     tip: '💡 <strong>Ankle Pumps:</strong> Pump feet up and down rhythmically to activate calf muscle venous pump and restore ankle mobility.',
-    motionProfile: { posture: 'supine', movementType: 'calf_raise', primaryJoint: 'KNEE', startAngle: 160, targetAngle: 180, tempoSpeed: 1.2 }
-  }
+    motionProfile: { posture: 'supine', movementType: 'ankle_pump', primaryJoint: 'KNEE', startAngle: 155, targetAngle: 180, tempoSpeed: 1.2 }
+  },
 };
 
 /**
@@ -740,6 +740,7 @@ export function modifyExerciseDefinition(id, updates) {
  * Retrieve an exercise definition by ID
  */
 export function getExerciseDefinition(id) {
+  if (typeof id === 'object' && id) return id;
   return CUSTOM_EXERCISES[id] || GYM_EXERCISES[id] || PT_EXERCISES[id] || null;
 }
 
