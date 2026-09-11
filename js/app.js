@@ -1561,6 +1561,14 @@ export class FlexAlignApp {
         this.avatar3d.onJointSelect = (jointData) => {
           this.showToast(`Inspecting ${jointData.label}: camera focused on joint.`, '🎯');
         };
+
+        // Sync view preset buttons when user manually drags camera orbit / pan
+        this.avatar3d.onCameraManualChange = () => {
+          ['btnViewFront', 'btnViewSide', 'btnViewIso', 'btnViewTop'].forEach(id => {
+            const b = document.getElementById(id);
+            if (b) b.classList.remove('active');
+          });
+        };
       } catch (err) {
         console.error('Failed to initialize 3D avatar:', err);
       }

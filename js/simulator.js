@@ -976,26 +976,37 @@ export class MotionSimulator {
     // PATTERN 7B: ROMANIAN DEADLIFT (RDL - SOFT KNEES, DEEP HIP HINGE BACK)
     // ─────────────────────────────────────────────────────────────
     } else if (mType === 'rdl' || name.includes('rdl') || name.includes('romanian')) {
-      const hipHingeBackZ = isFault ? (-0.12 * cycle) : (-0.30 * cycle);
-      const torsoHingeZ = isFault ? (0.44 * cycle) : (0.28 * cycle);
-      const hipDrop = 0.05 * cycle;
+      const hipHingeBackZ = isFault ? (-0.08 * cycle) : (-0.22 * cycle);
+      const hipDrop = 0.04 * cycle;
       lms[23] = { x: 0.44, y: hipY + hipDrop, z: hipHingeBackZ, visibility: 0.98 };
       lms[24] = { x: 0.56, y: hipY + hipDrop, z: hipHingeBackZ, visibility: 0.98 };
-      lms[11] = { x: 0.43, y: shoulderY + 0.16 * cycle, z: torsoHingeZ, visibility: 0.98 };
-      lms[12] = { x: 0.57, y: shoulderY + 0.16 * cycle, z: torsoHingeZ, visibility: 0.98 };
-      lms[0]  = { x: 0.50, y: 0.16 + 0.16 * cycle, z: torsoHingeZ, visibility: 0.98 };
+
+      // Spine maintains constant anatomical length while hinging forward
+      const hingeAngle = cycle * (isFault ? 1.45 : 1.25); // ~72° hinge
+      const torsoLen = 0.24;
+      const dY = -torsoLen * Math.cos(hingeAngle);
+      const dZ = torsoLen * Math.sin(hingeAngle);
+
+      const torsoY = (hipY + hipDrop) + dY;
+      const torsoZ = hipHingeBackZ + dZ;
+
+      lms[11] = { x: 0.43, y: torsoY, z: torsoZ, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: torsoY, z: torsoZ, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: torsoY - 0.12, z: torsoZ + 0.02, visibility: 0.98 };
+
       // Soft knees: remain fixed in slight 15-20° flexion (NEVER sink into a squat!)
-      const kneeSoftZ = 0.03 * cycle;
-      lms[25] = { x: 0.43, y: kneeY, z: kneeSoftZ, visibility: 0.98 };
-      lms[26] = { x: 0.57, y: kneeY, z: kneeSoftZ, visibility: 0.98 };
+      const kneeSoftZ = 0.04 * cycle;
+      lms[25] = { x: 0.43, y: kneeY + 0.01 * cycle, z: kneeSoftZ, visibility: 0.98 };
+      lms[26] = { x: 0.57, y: kneeY + 0.01 * cycle, z: kneeSoftZ, visibility: 0.98 };
       lms[27] = { x: 0.43, y: ankleY, z: 0, visibility: 0.98 };
       lms[28] = { x: 0.57, y: ankleY, z: 0, visibility: 0.98 };
-      // Bar stays glued to thighs, traveling down to just below knees
-      const barY = 0.58 + 0.14 * cycle;
-      lms[13] = { x: 0.42, y: barY - 0.18, z: torsoHingeZ * 0.7, visibility: 0.98 };
-      lms[14] = { x: 0.58, y: barY - 0.18, z: torsoHingeZ * 0.7, visibility: 0.98 };
-      lms[15] = { x: 0.42, y: barY, z: torsoHingeZ * 0.8, visibility: 0.98 };
-      lms[16] = { x: 0.58, y: barY, z: torsoHingeZ * 0.8, visibility: 0.98 };
+
+      // Barbell / dumbbells hang straight down under gravity, skimming the shins
+      const barY = torsoY + 0.28;
+      lms[13] = { x: 0.42, y: torsoY + 0.15, z: torsoZ * 0.7, visibility: 0.98 };
+      lms[14] = { x: 0.58, y: torsoY + 0.15, z: torsoZ * 0.7, visibility: 0.98 };
+      lms[15] = { x: 0.42, y: barY, z: torsoZ * 0.85, visibility: 0.98 };
+      lms[16] = { x: 0.58, y: barY, z: torsoZ * 0.85, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
     // PATTERN 7C: CONVENTIONAL DEADLIFT (FLOOR PULL & HIP EXTENSION LOCKOUT)
@@ -1029,16 +1040,27 @@ export class MotionSimulator {
     // ─────────────────────────────────────────────────────────────
     } else if (mType === 'reverse_lunge') {
       const drop = cycle * 0.20;
-      lms[23] = { x: 0.44, y: hipY + drop, z: -0.04 * cycle, visibility: 0.98 };
-      lms[24] = { x: 0.56, y: hipY + drop, z: -0.04 * cycle, visibility: 0.98 };
-      lms[11] = { x: 0.43, y: shoulderY + drop, z: 0.02, visibility: 0.98 };
-      lms[12] = { x: 0.57, y: shoulderY + drop, z: 0.02, visibility: 0.98 };
-      // Front left foot stays planted, knee bends to 90°
-      lms[25] = { x: 0.43, y: kneeY + drop * 0.4, z: 0.12 * cycle, visibility: 0.98 };
+      const torsoLeanZ = isFault ? (0.24 * cycle) : (0.02 * cycle);
+      lms[23] = { x: 0.44, y: hipY + drop, z: -0.06 * cycle, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: hipY + drop, z: -0.06 * cycle, visibility: 0.98 };
+      lms[11] = { x: 0.43, y: shoulderY + drop, z: torsoLeanZ, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY + drop, z: torsoLeanZ, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.16 + drop, z: torsoLeanZ, visibility: 0.98 };
+
+      // Front left foot stays firmly planted on floor, lead knee flexes smoothly to 90° directly above ankle
+      lms[25] = { x: 0.43, y: kneeY + drop * 0.42, z: 0.06 * cycle, visibility: 0.98 };
       lms[27] = { x: 0.43, y: ankleY, z: 0, visibility: 0.98 };
-      // Rear right leg steps backward in Z and knee drops to floor
-      lms[26] = { x: 0.57, y: kneeY + drop * 0.9, z: -0.26 * cycle, visibility: 0.98 };
-      lms[28] = { x: 0.57, y: ankleY, z: -0.32 * cycle, visibility: 0.98 };
+
+      // Rear right leg steps backward in Z. Knee drops down toward floor, hovering 2-3 inches above ground
+      lms[26] = { x: 0.57, y: kneeY + drop * 0.65, z: -0.16 * cycle, visibility: 0.98 };
+      // Rear ankle stays elevated with ball of foot planted on floor
+      lms[28] = { x: 0.57, y: ankleY - 0.03 * cycle, z: -0.28 * cycle, visibility: 0.98 };
+
+      // Arms hold dumbbells vertically down at sides
+      lms[13] = { x: 0.41, y: shoulderY + drop + 0.20, z: 0, visibility: 0.98 };
+      lms[14] = { x: 0.59, y: shoulderY + drop + 0.20, z: 0, visibility: 0.98 };
+      lms[15] = { x: 0.41, y: shoulderY + drop + 0.40, z: 0, visibility: 0.98 };
+      lms[16] = { x: 0.59, y: shoulderY + drop + 0.40, z: 0, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
     // PATTERN 8B: BULGARIAN SPLIT SQUAT (STATIONARY ELEVATOR DROP)
@@ -1166,13 +1188,14 @@ export class MotionSimulator {
       lms[26] = { x: 0.57 - valgusShift, y: kneeYDrop, z: kneeZ, visibility: 0.98 };
       lms[27] = { x: 0.42, y: ankleY, z: 0, visibility: 0.98 };
       lms[28] = { x: 0.58, y: ankleY, z: 0, visibility: 0.98 };
-      // GOBLET ARMS: Hands cupped tightly together at upper sternum/collarbones
-      // Elbows tucked down vertically, tracking inside knees
-      const elbowTuck = isFault ? (0.05 * cycle) : 0;
-      lms[13] = { x: 0.45 - elbowTuck, y: torsoY + 0.14, z: 0.10, visibility: 0.98 };
-      lms[14] = { x: 0.55 + elbowTuck, y: torsoY + 0.14, z: 0.10, visibility: 0.98 };
-      lms[15] = { x: 0.48, y: torsoY + 0.06, z: 0.15, visibility: 0.98 };
-      lms[16] = { x: 0.52, y: torsoY + 0.06, z: 0.15, visibility: 0.98 };
+      // GOBLET ARMS: Anatomically natural proportions
+      // Elbows tucked down vertically at sides, tracking inside knees
+      const elbowTuck = isFault ? (0.04 * cycle) : 0;
+      lms[13] = { x: 0.44 - elbowTuck, y: torsoY + 0.18, z: trunkLeanZ + 0.08, visibility: 0.98 };
+      lms[14] = { x: 0.56 + elbowTuck, y: torsoY + 0.18, z: trunkLeanZ + 0.08, visibility: 0.98 };
+      // Hands cupping kettlebell/dumbbell securely at upper sternum
+      lms[15] = { x: 0.48, y: torsoY + 0.07, z: trunkLeanZ + 0.16, visibility: 0.98 };
+      lms[16] = { x: 0.52, y: torsoY + 0.07, z: trunkLeanZ + 0.16, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
     // PATTERN 11A: SUMO SQUAT (WIDE STANCE & OUTWARD KNEE TRACKING)
