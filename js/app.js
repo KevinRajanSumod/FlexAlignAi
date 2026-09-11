@@ -369,6 +369,15 @@ export class FlexAlignApp {
       const iconEl = document.getElementById('hudGuidanceIcon');
       const badgeEl = document.getElementById('hudGuidanceBadge');
 
+      // If user clicked close button on this specific guidance note, don't reopen until a new message arrives
+      if (this.isGuidanceDismissed) {
+        if (res.guidanceText && res.guidanceText !== this.dismissedGuidanceText) {
+          this.isGuidanceDismissed = false;
+        } else {
+          return;
+        }
+      }
+
       if (res.isFault) {
         if (this.postRepCoachTipTimer) {
           clearTimeout(this.postRepCoachTipTimer);
@@ -526,6 +535,9 @@ export class FlexAlignApp {
       this.postRepCoachTipTimer = null;
     }
     this.isShowingPostRepTip = false;
+    const msgEl = document.getElementById('hudGuidanceText');
+    this.dismissedGuidanceText = msgEl ? msgEl.textContent : '';
+    this.isGuidanceDismissed = true;
     const banner = document.getElementById('hudGuidanceBanner');
     if (banner) {
       banner.style.display = 'none';
@@ -1556,6 +1568,8 @@ export class FlexAlignApp {
     this.avatar3d.hide();
     const dock = document.getElementById('avatarControlDock');
     if (dock) dock.style.display = 'none';
+    const quickZoom = document.getElementById('avatarQuickZoomWidget');
+    if (quickZoom) quickZoom.style.display = 'none';
     const navHint = document.getElementById('avatarNavHint');
     if (navHint) navHint.style.display = 'none';
     const tip = document.getElementById('avatarJointTooltip');
@@ -1637,6 +1651,8 @@ export class FlexAlignApp {
 
     const dock = document.getElementById('avatarControlDock');
     if (dock) dock.style.display = 'flex';
+    const quickZoom = document.getElementById('avatarQuickZoomWidget');
+    if (quickZoom) quickZoom.style.display = 'flex';
     const navHint = document.getElementById('avatarNavHint');
     if (navHint) navHint.style.display = 'block';
 
@@ -1835,6 +1851,8 @@ export class FlexAlignApp {
     const isOrbit = this.avatar3d.toggleAutoOrbit();
     const btn = document.getElementById('btnAutoOrbit');
     if (btn) btn.classList.toggle('active', isOrbit);
+    const quickBtn = document.getElementById('quickOrbitBtn');
+    if (quickBtn) quickBtn.classList.toggle('active', isOrbit);
     this.showToast(isOrbit ? '360° Continuous Orbit ON' : 'Orbit Stopped', '🔄');
   }
 

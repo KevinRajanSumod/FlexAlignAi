@@ -72,6 +72,12 @@
       applyAiPreset: function (preset) { this._forward('applyAiPreset', [preset]); },
       generateOrModifyAiExercise: function () { this._forward('generateOrModifyAiExercise', []); },
       launchGeneratedExercise: function () { this._forward('launchGeneratedExercise', []); },
+      zoomAvatar: function (factor) { this._forward('zoomAvatar', [factor]); },
+      panAvatar: function (dx, dy) { this._forward('panAvatar', [dx, dy]); },
+      resetAvatarView: function () { this._forward('resetAvatarView', []); },
+      setAvatarView: function (preset) { this._forward('setAvatarView', [preset]); },
+      toggleAvatarAutoOrbit: function () { this._forward('toggleAvatarAutoOrbit', []); },
+      toggleAvatarXRay: function () { this._forward('toggleAvatarXRay', []); },
       _forward: function (fn, args) {
         if (window._realApp && typeof window._realApp[fn] === 'function') {
           window._realApp[fn].apply(window._realApp, args);
@@ -191,8 +197,8 @@
               <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.panAvatar(0.35, 0)" title="Shift Right (Pan Right)">▶</button>
               <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.panAvatar(0, 0.35)" title="Shift Up">▲</button>
               <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.panAvatar(0, -0.35)" title="Shift Down">▼</button>
-              <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.zoomAvatar(0.85)" title="Zoom In (+)">🔍+</button>
-              <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.zoomAvatar(1.18)" title="Zoom Out (−)">🔍−</button>
+              <button type="button" class="avatar-dock-btn zoom-btn" onclick="window.app.zoomAvatar(0.85)" title="Zoom In (+)">🔍+ In</button>
+              <button type="button" class="avatar-dock-btn zoom-btn" onclick="window.app.zoomAvatar(1.18)" title="Zoom Out (−)">🔍− Out</button>
             </div>
 
             <div class="avatar-dock-divider"></div>
@@ -202,6 +208,27 @@
               <button type="button" class="avatar-dock-btn" id="btnXRayMode" onclick="window.app.toggleAvatarXRay()" title="Toggle Holographic Skeletal X-Ray Mode">⚡ X-Ray</button>
               <button type="button" class="avatar-dock-btn" onclick="window.app.resetAvatarView()" title="Reset Camera View to Default">↺ Reset</button>
             </div>
+          </div>
+
+          <!-- Floating 3D Quick-Zoom & Framing Widget (Right Edge - Always accessible in 3D View) -->
+          <div id="avatarQuickZoomWidget" class="avatar-quick-zoom-widget" style="display: none;">
+            <button type="button" class="quick-zoom-btn" onclick="window.app.zoomAvatar(0.82)" title="Zoom In (+)">
+              <span class="quick-zoom-icon">➕</span>
+              <span class="quick-zoom-label">In</span>
+            </button>
+            <button type="button" class="quick-zoom-btn" onclick="window.app.zoomAvatar(1.22)" title="Zoom Out (−)">
+              <span class="quick-zoom-icon">➖</span>
+              <span class="quick-zoom-label">Out</span>
+            </button>
+            <div class="quick-zoom-divider"></div>
+            <button type="button" class="quick-zoom-btn" onclick="window.app.resetAvatarView()" title="Fit Camera to Model">
+              <span class="quick-zoom-icon">🎯</span>
+              <span class="quick-zoom-label">Fit</span>
+            </button>
+            <button type="button" class="quick-zoom-btn" id="quickOrbitBtn" onclick="window.app.toggleAvatarAutoOrbit()" title="Toggle 360° Orbit">
+              <span class="quick-zoom-icon">🔄</span>
+              <span class="quick-zoom-label">360°</span>
+            </button>
           </div>
 
           <!-- Interactive 3D Joint Floating Badge (Shown on Hover / Click) -->
