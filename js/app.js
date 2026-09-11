@@ -125,10 +125,10 @@ export class FlexAlignApp {
 
     const ex = this.evaluator.currentExercise;
 
-    const leftArmVis = ((landmarks[11]?.visibility || 0) + (landmarks[13]?.visibility || 0) + (landmarks[15]?.visibility || 0)) / 3;
-    const rightArmVis = ((landmarks[12]?.visibility || 0) + (landmarks[14]?.visibility || 0) + (landmarks[16]?.visibility || 0)) / 3;
-    const leftLegVis = ((landmarks[23]?.visibility || 0) + (landmarks[25]?.visibility || 0) + (landmarks[27]?.visibility || 0)) / 3;
-    const rightLegVis = ((landmarks[24]?.visibility || 0) + (landmarks[26]?.visibility || 0) + (landmarks[28]?.visibility || 0)) / 3;
+    const leftArmVis = (((landmarks[11] && landmarks[11].visibility) || 0) + ((landmarks[13] && landmarks[13].visibility) || 0) + ((landmarks[15] && landmarks[15].visibility) || 0)) / 3;
+    const rightArmVis = (((landmarks[12] && landmarks[12].visibility) || 0) + ((landmarks[14] && landmarks[14].visibility) || 0) + ((landmarks[16] && landmarks[16].visibility) || 0)) / 3;
+    const leftLegVis = (((landmarks[23] && landmarks[23].visibility) || 0) + ((landmarks[25] && landmarks[25].visibility) || 0) + ((landmarks[27] && landmarks[27].visibility) || 0)) / 3;
+    const rightLegVis = (((landmarks[24] && landmarks[24].visibility) || 0) + ((landmarks[26] && landmarks[26].visibility) || 0) + ((landmarks[28] && landmarks[28].visibility) || 0)) / 3;
 
     // Squat: bilateral lower body compound movement
     if (ex === 'gym_squat' || ex === 'squat') {
@@ -535,7 +535,7 @@ export class FlexAlignApp {
 
     if (tabName === 'waveform') {
       const ex = GYM_EXERCISES[this.evaluator.currentExercise] || PT_EXERCISES[this.evaluator.currentExercise];
-      const targetDeg = this.evaluator.mode === 'gym' ? (ex?.defaultTarget || 90) : (this.evaluator.therapySafeThresholds[this.evaluator.currentExercise] || 90);
+      const targetDeg = this.evaluator.mode === 'gym' ? ((ex && ex.defaultTarget) || 90) : (this.evaluator.therapySafeThresholds[this.evaluator.currentExercise] || 90);
       this.waveform.render(this.evaluator.mode, targetDeg);
     }
   }
@@ -815,7 +815,8 @@ export class FlexAlignApp {
     this.showTypingIndicator(true);
 
     // Build session context
-    const exName = (GYM_EXERCISES[this.evaluator.currentExercise] || PT_EXERCISES[this.evaluator.currentExercise])?.name || this.evaluator.currentExercise;
+    const exObj = GYM_EXERCISES[this.evaluator.currentExercise] || PT_EXERCISES[this.evaluator.currentExercise];
+    const exName = (exObj && exObj.name) || this.evaluator.currentExercise;
     const sessionCtx = {
       exercise: exName,
       mode: this.evaluator.mode,
@@ -858,7 +859,8 @@ export class FlexAlignApp {
     this.addChatBubble('user', '📊 Analyze my current session');
     this.showTypingIndicator(true);
 
-    const exName = (getExerciseDefinition(this.evaluator.currentExercise) || GYM_EXERCISES[this.evaluator.currentExercise] || PT_EXERCISES[this.evaluator.currentExercise])?.name || this.evaluator.currentExercise;
+    const exDef = getExerciseDefinition(this.evaluator.currentExercise) || GYM_EXERCISES[this.evaluator.currentExercise] || PT_EXERCISES[this.evaluator.currentExercise];
+    const exName = (exDef && exDef.name) || this.evaluator.currentExercise;
 
     const sessionData = {
       exercise: exName,
@@ -1340,8 +1342,14 @@ export class FlexAlignApp {
     const splash = document.getElementById('viewportSplash');
     if (splash) splash.classList.remove('hidden');
 
-    // Hide 3D avatar
+    // Hide 3D avatar & control docks
     this.avatar3d.hide();
+    const dock = document.getElementById('avatarControlDock');
+    if (dock) dock.style.display = 'none';
+    const navHint = document.getElementById('avatarNavHint');
+    if (navHint) navHint.style.display = 'none';
+    const tip = document.getElementById('avatarJointTooltip');
+    if (tip) tip.style.display = 'none';
 
     // Only show post-exercise coach tip after exercise is done IF reps were performed
     if (this.evaluator && this.evaluator.repCount > 0) {
@@ -1412,10 +1420,15 @@ export class FlexAlignApp {
     this.canvas.width = 1280;
     this.canvas.height = 720;
 
-    // Initialize and show 3D avatar
+    // Show 3D Avatar & Interactive Control Dock
     this._init3DAvatar();
 
-    this.showToast('3D Simulation running. Drag to rotate avatar.', '🎮');
+    const dock = document.getElementById('avatarControlDock');
+    if (dock) dock.style.display = 'flex';
+    const navHint = document.getElementById('avatarNavHint');
+    if (navHint) navHint.style.display = 'block';
+
+    this.showToast('3D Simulation running: Drag to rotate, Right-click to pan.', '🎮');
 
     const simLoop = () => {
       // Guard: bail immediately if stop was requested
@@ -1450,7 +1463,6 @@ export class FlexAlignApp {
   _init3DAvatar() {
     if (!this.avatarCanvas) return;
 
-    // 1. Force display block on DOM element immediately
     this.avatarCanvas.style.display = 'block';
 
     const viewportEl = document.getElementById('viewportContainer');
@@ -1462,12 +1474,101 @@ export class FlexAlignApp {
     if (!this.avatar3d.isReady) {
       try {
         this.avatar3d.init(this.avatarCanvas);
+
+        // Raycasting Joint Tooltip Callbacks
+        this.avatar3d.onJointHover = (jointData, event) => {
+          const tooltip = document.getElementById('avatarJointTooltip');
+          if (!tooltip) return;
+          if (!jointData) {
+            tooltip.style.display = 'none';
+            return;
+          }
+          const viewport = document.getElementById('viewportContainer');
+          if (!viewport) return;
+          const rect = viewport.getBoundingClientRect();
+          tooltip.style.left = `${Math.min(rect.width - 100, Math.max(80, event.clientX - rect.left))}px`;
+          tooltip.style.top = `${Math.min(rect.height - 40, Math.max(50, event.clientY - rect.top))}px`;
+
+          const titleEl = document.getElementById('jointTipTitle');
+          const angleEl = document.getElementById('jointTipAngle');
+          const statusEl = document.getElementById('jointTipStatus');
+
+          if (titleEl) titleEl.textContent = jointData.label || 'Active Joint';
+          if (angleEl) angleEl.textContent = `${Math.round(this.evaluator.currentAngle || 0)}°`;
+
+          const isOptimal = !this.evaluator.lastResult || !this.evaluator.lastResult.isFault;
+          if (statusEl) {
+            statusEl.textContent = isOptimal ? 'Optimal Form' : 'Fault Detected';
+            statusEl.className = `joint-tip-status ${isOptimal ? 'optimal' : 'fault'}`;
+          }
+          tooltip.style.display = 'block';
+        };
+
+        this.avatar3d.onJointSelect = (jointData) => {
+          this.showToast(`Inspecting ${jointData.label}: camera focused on joint.`, '🎯');
+        };
       } catch (err) {
         console.error('Failed to initialize 3D avatar:', err);
       }
     }
 
     this.avatar3d.show();
+  }
+
+  setAvatarView(preset) {
+    if (!this.avatar3d) return;
+    this.avatar3d.setViewPreset(preset);
+
+    const btnMap = {
+      front: 'btnViewFront',
+      side: 'btnViewSide',
+      iso: 'btnViewIso',
+      top: 'btnViewTop'
+    };
+
+    Object.keys(btnMap).forEach(k => {
+      const b = document.getElementById(btnMap[k]);
+      if (b) b.classList.toggle('active', k === preset);
+    });
+
+    const labels = { front: 'Front (0°)', side: 'Side Sagittal (90°)', iso: '3/4 Isometric', top: 'Top Overhead' };
+    this.showToast(`Camera view: ${labels[preset] || preset}`, '🎥');
+  }
+
+  panAvatar(deltaX, deltaY) {
+    if (this.avatar3d) {
+      this.avatar3d.pan(deltaX, deltaY);
+    }
+  }
+
+  zoomAvatar(factor) {
+    if (this.avatar3d) {
+      this.avatar3d.zoom(factor);
+    }
+  }
+
+  resetAvatarView() {
+    if (this.avatar3d) {
+      this.avatar3d.resetView();
+      this.setAvatarView('front');
+      this.showToast('Camera reset to center view.', '↺');
+    }
+  }
+
+  toggleAvatarAutoOrbit() {
+    if (!this.avatar3d) return;
+    const isOrbit = this.avatar3d.toggleAutoOrbit();
+    const btn = document.getElementById('btnAutoOrbit');
+    if (btn) btn.classList.toggle('active', isOrbit);
+    this.showToast(isOrbit ? '360° Continuous Orbit ON' : 'Orbit Stopped', '🔄');
+  }
+
+  toggleAvatarXRay() {
+    if (!this.avatar3d) return;
+    const isXRay = this.avatar3d.toggleXRayMode();
+    const btn = document.getElementById('btnXRayMode');
+    if (btn) btn.classList.toggle('active', isXRay);
+    this.showToast(isXRay ? 'Holographic Skeletal X-Ray ON' : 'Standard Suit Shading ON', '⚡');
   }
 
   toggleSimulation() {

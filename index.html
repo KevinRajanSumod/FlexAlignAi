@@ -166,6 +166,53 @@
             </div>
           </div>
 
+          <!-- Interactive 3D Avatar Control Dock (Active in 3D Sim Mode) -->
+          <div id="avatarControlDock" class="avatar-control-dock" style="display: none;">
+            <div class="avatar-dock-group views-group">
+              <span class="avatar-dock-label">VIEW:</span>
+              <button type="button" class="avatar-dock-btn active" id="btnViewFront" onclick="window.app.setAvatarView('front')" title="Front View (0°)">🎥 Front</button>
+              <button type="button" class="avatar-dock-btn" id="btnViewSide" onclick="window.app.setAvatarView('side')" title="Side Sagittal Profile (90°)">📐 Side</button>
+              <button type="button" class="avatar-dock-btn" id="btnViewIso" onclick="window.app.setAvatarView('iso')" title="3/4 Isometric Perspective">🧊 3/4</button>
+              <button type="button" class="avatar-dock-btn" id="btnViewTop" onclick="window.app.setAvatarView('top')" title="Top Overhead Transverse View">🔝 Top</button>
+            </div>
+
+            <div class="avatar-dock-divider"></div>
+
+            <div class="avatar-dock-group pan-zoom-group">
+              <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.panAvatar(-0.35, 0)" title="Shift Left (Pan Left)">◀</button>
+              <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.panAvatar(0.35, 0)" title="Shift Right (Pan Right)">▶</button>
+              <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.panAvatar(0, 0.35)" title="Shift Up">▲</button>
+              <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.panAvatar(0, -0.35)" title="Shift Down">▼</button>
+              <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.zoomAvatar(0.85)" title="Zoom In (+)">🔍+</button>
+              <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.zoomAvatar(1.18)" title="Zoom Out (−)">🔍−</button>
+            </div>
+
+            <div class="avatar-dock-divider"></div>
+
+            <div class="avatar-dock-group actions-group">
+              <button type="button" class="avatar-dock-btn" id="btnAutoOrbit" onclick="window.app.toggleAvatarAutoOrbit()" title="360° Continuous Orbit Rotation">🔄 360° Orbit</button>
+              <button type="button" class="avatar-dock-btn" id="btnXRayMode" onclick="window.app.toggleAvatarXRay()" title="Toggle Holographic Skeletal X-Ray Mode">⚡ X-Ray</button>
+              <button type="button" class="avatar-dock-btn" onclick="window.app.resetAvatarView()" title="Reset Camera View to Default">↺ Reset</button>
+            </div>
+          </div>
+
+          <!-- Interactive 3D Joint Floating Badge (Shown on Hover / Click) -->
+          <div id="avatarJointTooltip" class="avatar-joint-tooltip" style="display: none;">
+            <div class="joint-tip-header">
+              <span id="jointTipIcon">🎯</span>
+              <strong id="jointTipTitle">Active Joint</strong>
+            </div>
+            <div class="joint-tip-body">
+              <span id="jointTipAngle" class="joint-tip-angle">0°</span>
+              <span id="jointTipStatus" class="joint-tip-status optimal">Optimal ROM</span>
+            </div>
+          </div>
+
+          <!-- 3D Navigation Hint Pill -->
+          <div id="avatarNavHint" class="avatar-nav-hint" style="display: none;">
+            <span>🖱️ Left-Drag: Rotate 360° &bull; Right-Drag / 2-Finger: Pan & Shift &bull; Wheel: Zoom &bull; Click Joint to Focus</span>
+          </div>
+
           <!-- High-Visibility Guidance Banner (Top Coach Note - Never blocks splash or controls) -->
           <div id="hudGuidanceBanner" class="hud-guidance-banner info hidden" style="display: none;">
             <span id="hudGuidanceIcon" class="guidance-icon">💡</span>
