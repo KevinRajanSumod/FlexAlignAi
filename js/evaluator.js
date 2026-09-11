@@ -104,7 +104,7 @@ export class ExerciseEvaluator {
     return (Date.now() - this.inflectionEnteredAt) >= 300;
   }
 
-  evaluate(landmarks, side) {
+  evaluate(landmarks, side, isSimulatedOptimal = false) {
     const isBoth = side === 'both' || side === 'auto';
     const isLeft = side === 'left';
     let mainAngle = 0;
@@ -962,17 +962,20 @@ export class ExerciseEvaluator {
           const k = isLeft ? landmarks[25] : landmarks[26];
           mainAngle = calculateJointAngle(s, h, k);
         }
-        const torsoLean = Math.max(
-          calculateTorsoLean(landmarks[11], landmarks[23]),
-          calculateTorsoLean(landmarks[12], landmarks[24])
-        );
-        const isHinge = (mp.movementType === 'rdl' || mp.movementType === 'deadlift' || mp.movementType === 'good_morning' || mp.movementType === 'row' || (customDef.name && customDef.name.toLowerCase().includes('hinge')));
-        const defaultLean = isHinge ? 82 : 45;
-        const maxLean = (customDef.faultCriteria && customDef.faultCriteria.torsoLeanThreshold) || defaultLean;
-        if (torsoLean > maxLean) {
-          isFault = true;
-          faultLimb = 'trunk';
-          faultMessage = customDef.faultMessage || '⚠️ Torso Rounding / Excessive Spinal Flexion!';
+        const isHorizontalPosture = mp.posture === 'supine' || mp.posture === 'prone' || mp.posture === 'quadruped' || mp.posture === 'side_lying' || mp.posture === 'plank' || (customDef.name && (customDef.name.toLowerCase().includes('bridge') || customDef.name.toLowerCase().includes('thrust') || customDef.name.toLowerCase().includes('crunch') || customDef.name.toLowerCase().includes('tilt')));
+        if (!isHorizontalPosture) {
+          const torsoLean = Math.max(
+            calculateTorsoLean(landmarks[11], landmarks[23]),
+            calculateTorsoLean(landmarks[12], landmarks[24])
+          );
+          const isHinge = (mp.movementType === 'rdl' || mp.movementType === 'deadlift' || mp.movementType === 'good_morning' || mp.movementType === 'row' || (customDef.name && customDef.name.toLowerCase().includes('hinge')));
+          const defaultLean = isHinge ? 82 : 45;
+          const maxLean = (customDef.faultCriteria && customDef.faultCriteria.torsoLeanThreshold) || defaultLean;
+          if (torsoLean > maxLean) {
+            isFault = true;
+            faultLimb = 'trunk';
+            faultMessage = customDef.faultMessage || '⚠️ Torso Rounding / Excessive Spinal Flexion!';
+          }
         }
       } else if (joint === 'ELBOW') {
         // Shoulder - Elbow - Wrist
@@ -1016,15 +1019,18 @@ export class ExerciseEvaluator {
             faultLimb = 'elbows';
             faultMessage = customDef.faultMessage || '⚠️ Elbow Flare! Keep Forearms Aligned';
           }
-          const torsoLean = Math.max(
-            calculateTorsoLean(landmarks[11], landmarks[23]),
-            calculateTorsoLean(landmarks[12], landmarks[24])
-          );
-          const maxLean = (customDef.faultCriteria && customDef.faultCriteria.torsoLeanThreshold) || 20;
-          if (torsoLean > maxLean) {
-            isFault = true;
-            faultLimb = 'trunk';
-            faultMessage = customDef.faultMessage || '⚠️ Torso Momentum / Cheating with Spine!';
+          const isHorizontalPosture = mp.posture === 'supine' || mp.posture === 'prone' || mp.posture === 'quadruped' || mp.posture === 'side_lying' || (customDef.name && (customDef.name.toLowerCase().includes('press') || customDef.name.toLowerCase().includes('bench') || customDef.name.toLowerCase().includes('floor')));
+          if (!isHorizontalPosture) {
+            const torsoLean = Math.max(
+              calculateTorsoLean(landmarks[11], landmarks[23]),
+              calculateTorsoLean(landmarks[12], landmarks[24])
+            );
+            const maxLean = (customDef.faultCriteria && customDef.faultCriteria.torsoLeanThreshold) || 20;
+            if (torsoLean > maxLean) {
+              isFault = true;
+              faultLimb = 'trunk';
+              faultMessage = customDef.faultMessage || '⚠️ Torso Momentum / Cheating with Spine!';
+            }
           }
         }
       } else if (joint === 'SHOULDER') {
@@ -1067,15 +1073,18 @@ export class ExerciseEvaluator {
           const a = isLeft ? landmarks[27] : landmarks[28];
           mainAngle = calculateJointAngle(h, k, a);
         }
-        const torsoLean = Math.max(
-          calculateTorsoLean(landmarks[11], landmarks[23]),
-          calculateTorsoLean(landmarks[12], landmarks[24])
-        );
-        const maxLean = (customDef.faultCriteria && customDef.faultCriteria.torsoLeanThreshold) || 35;
-        if (torsoLean > maxLean) {
-          isFault = true;
-          faultLimb = 'trunk';
-          faultMessage = customDef.faultMessage || '⚠️ Excessive Forward Torso Collapse!';
+        const isHorizontalPosture = mp.posture === 'supine' || mp.posture === 'prone' || mp.posture === 'quadruped' || mp.posture === 'side_lying' || mp.posture === 'seated' || (customDef.name && (customDef.name.toLowerCase().includes('pump') || customDef.name.toLowerCase().includes('clamshell') || customDef.name.toLowerCase().includes('tke')));
+        if (!isHorizontalPosture) {
+          const torsoLean = Math.max(
+            calculateTorsoLean(landmarks[11], landmarks[23]),
+            calculateTorsoLean(landmarks[12], landmarks[24])
+          );
+          const maxLean = (customDef.faultCriteria && customDef.faultCriteria.torsoLeanThreshold) || 35;
+          if (torsoLean > maxLean) {
+            isFault = true;
+            faultLimb = 'trunk';
+            faultMessage = customDef.faultMessage || '⚠️ Excessive Forward Torso Collapse!';
+          }
         }
         if (mainAngle < 145) {
           const valgusL = landmarks[25] && landmarks[27] && (landmarks[25].x - landmarks[27].x > 0.038);
@@ -1086,6 +1095,14 @@ export class ExerciseEvaluator {
             faultMessage = customDef.faultMessage || '⚠️ Knee Valgus! Push Knees Out';
           }
         }
+      }
+
+      if (isSimulatedOptimal) {
+        isFault = false;
+        faultMessage = '';
+        faultLimb = null;
+        this.currentRepHadFault = false;
+        this._consecutiveFaultFrames = 0;
       }
 
       if (isFault) {
@@ -1120,7 +1137,7 @@ export class ExerciseEvaluator {
             const repDuration = (rawDur > 0 && !isNaN(rawDur)) ? rawDur.toFixed(1) : '2.5';
             this.lastRepTimestamp = now;
             this.repCount++;
-            const isCompliant = !this.currentRepHadFault && (this.currentRepLowestAngle <= targetAngle + 10);
+            const isCompliant = isSimulatedOptimal || (!this.currentRepHadFault && (this.currentRepLowestAngle <= targetAngle + 10));
             if (!isCompliant) {
               this.faultCount++;
               this.complianceScore = Math.max(30, this.complianceScore - 12);
@@ -1151,7 +1168,7 @@ export class ExerciseEvaluator {
             const repDuration = (rawDur > 0 && !isNaN(rawDur)) ? rawDur.toFixed(1) : '2.5';
             this.lastRepTimestamp = now;
             this.repCount++;
-            const isCompliant = !this.currentRepHadFault && (this.currentRepHighestAngle >= targetAngle - 10);
+            const isCompliant = isSimulatedOptimal || (!this.currentRepHadFault && (this.currentRepHighestAngle >= targetAngle - 10));
             if (!isCompliant) {
               this.faultCount++;
               this.complianceScore = Math.max(30, this.complianceScore - 12);
@@ -1192,12 +1209,20 @@ export class ExerciseEvaluator {
     }
 
     // Fault debounce: require 2 consecutive frames
-    if (isFault) {
+    if (isSimulatedOptimal) {
+      isFault = false;
+      faultLimb = null;
+      faultMessage = '';
+      this.currentRepHadFault = false;
+      this._consecutiveFaultFrames = 0;
+      this.faultCount = 0;
+      this.complianceScore = 100;
+    } else if (isFault) {
       this._consecutiveFaultFrames++;
     } else {
       this._consecutiveFaultFrames = 0;
     }
-    const debouncedFault = this._consecutiveFaultFrames >= this._FAULT_FRAME_THRESHOLD;
+    const debouncedFault = isSimulatedOptimal ? false : (this._consecutiveFaultFrames >= this._FAULT_FRAME_THRESHOLD);
 
     return {
       angle: this.currentAngle,

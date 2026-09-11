@@ -20,14 +20,28 @@ export const GYM_SIM_IDS = [
   'lateral_raise',
   'gym_pushup',
   'pushup',
+  'gym_diamond_pushup',
+  'diamond_pushup',
   'gym_glute_bridge',
-  'glute_bridge'
+  'glute_bridge',
+  'gym_deadlift',
+  'deadlift',
+  'gym_good_morning',
+  'good_morning',
+  'gym_sumo_squat',
+  'sumo_squat',
+  'gym_bench_press',
+  'bench_press',
+  'gym_floor_press',
+  'floor_press',
+  'gym_hammer_curl',
+  'hammer_curl'
 ];
 
 export function isGymExercise(exerciseId) {
   if (!exerciseId) return false;
   const id = exerciseId.toLowerCase();
-  return id.startsWith('gym_') || GYM_SIM_IDS.includes(id);
+  return GYM_SIM_IDS.includes(id) || id.includes('pushup') || id.includes('diamond');
 }
 
 /**
@@ -281,6 +295,139 @@ export function generateGymLandmarks(exercise, isFault, cycle, lms, dims) {
     lms[14] = { x: 0.62, y: 0.86, z: 0.12, visibility: 0.98 };
     lms[15] = { x: 0.38, y: 0.88, z: -0.02, visibility: 0.98 };
     lms[16] = { x: 0.62, y: 0.88, z: -0.02, visibility: 0.98 };
+    return true;
+  }
+
+  // 11. DIAMOND PUSH-UP (Triceps Focus)
+  if (exercise === 'gym_diamond_pushup' || exercise === 'diamond_pushup' || exercise.includes('diamond')) {
+    const maxDrop = isFault ? 0.05 : 0.13;
+    const dropY = cycle * maxDrop;
+    lms[27] = { x: 0.44, y: 0.89, z: -0.62, visibility: 0.98 };
+    lms[28] = { x: 0.56, y: 0.89, z: -0.62, visibility: 0.98 };
+    lms[15] = { x: 0.48, y: 0.90, z: 0.10, visibility: 0.98 };
+    lms[16] = { x: 0.52, y: 0.90, z: 0.10, visibility: 0.98 };
+    const shY = 0.74 + dropY;
+    lms[11] = { x: 0.41, y: shY, z: 0.10, visibility: 0.98 };
+    lms[12] = { x: 0.59, y: shY, z: 0.10, visibility: 0.98 };
+    lms[0]  = { x: 0.50, y: shY - 0.03, z: 0.20, visibility: 0.98 };
+    const hipSag = isFault ? (dropY * 1.5) : (dropY * 0.7);
+    lms[23] = { x: 0.44, y: 0.78 + hipSag, z: -0.16, visibility: 0.98 };
+    lms[24] = { x: 0.56, y: 0.78 + hipSag, z: -0.16, visibility: 0.98 };
+    lms[25] = { x: 0.44, y: 0.83 + dropY * 0.35, z: -0.38, visibility: 0.98 };
+    lms[26] = { x: 0.56, y: 0.83 + dropY * 0.35, z: -0.38, visibility: 0.98 };
+    const flare = isFault ? (0.08 * cycle) : 0.015 * cycle;
+    const elbowZ = 0.10 - 0.13 * cycle;
+    const elbowY = shY + 0.07;
+    lms[13] = { x: 0.43 - flare, y: elbowY, z: elbowZ, visibility: 0.98 };
+    lms[14] = { x: 0.57 + flare, y: elbowY, z: elbowZ, visibility: 0.98 };
+    return true;
+  }
+
+  // 12. CONVENTIONAL DEADLIFT
+  if (exercise === 'gym_deadlift' || exercise === 'deadlift') {
+    const hingeCycle = 1 - cycle; // 1 at floor, 0 at lockout
+    const hipDrop = hingeCycle * (isFault ? 0.09 : 0.16);
+    const hipPushBackZ = hingeCycle * (isFault ? -0.26 : -0.18);
+    lms[23] = { x: 0.44, y: hipY + hipDrop, z: hipPushBackZ, visibility: 0.98 };
+    lms[24] = { x: 0.56, y: hipY + hipDrop, z: hipPushBackZ, visibility: 0.98 };
+    const trunkFwdZ = hingeCycle * (isFault ? 0.34 : 0.16);
+    const torsoY = shoulderY + hingeCycle * 0.22;
+    lms[11] = { x: 0.42, y: torsoY, z: trunkFwdZ, visibility: 0.98 };
+    lms[12] = { x: 0.58, y: torsoY, z: trunkFwdZ, visibility: 0.98 };
+    lms[0]  = { x: 0.50, y: torsoY - 0.12, z: trunkFwdZ + 0.04, visibility: 0.98 };
+    const kneeBendY = kneeY + hingeCycle * 0.05;
+    lms[25] = { x: 0.43, y: kneeBendY, z: hingeCycle * 0.05, visibility: 0.98 };
+    lms[26] = { x: 0.57, y: kneeBendY, z: hingeCycle * 0.05, visibility: 0.98 };
+    lms[27] = { x: 0.43, y: ankleY, z: 0, visibility: 0.98 };
+    lms[28] = { x: 0.57, y: ankleY, z: 0, visibility: 0.98 };
+    // Long straight arms holding barbell
+    const barY = Math.min(ankleY - 0.04, torsoY + 0.40);
+    lms[13] = { x: 0.40, y: (torsoY + barY) * 0.5, z: trunkFwdZ * 0.6, visibility: 0.98 };
+    lms[14] = { x: 0.60, y: (torsoY + barY) * 0.5, z: trunkFwdZ * 0.6, visibility: 0.98 };
+    lms[15] = { x: 0.40, y: barY, z: trunkFwdZ * 0.3, visibility: 0.98 };
+    lms[16] = { x: 0.60, y: barY, z: trunkFwdZ * 0.3, visibility: 0.98 };
+    return true;
+  }
+
+  // 13. SUMO SQUAT (Wide Stance)
+  if (exercise === 'gym_sumo_squat' || exercise === 'sumo_squat') {
+    const squatDrop = cycle * (isFault ? 0.12 : 0.22);
+    lms[27] = { x: 0.38, y: ankleY, z: 0, visibility: 0.98 };
+    lms[28] = { x: 0.62, y: ankleY, z: 0, visibility: 0.98 };
+    lms[23] = { x: 0.44, y: hipY + squatDrop, z: -0.04 * cycle, visibility: 0.98 };
+    lms[24] = { x: 0.56, y: hipY + squatDrop, z: -0.04 * cycle, visibility: 0.98 };
+    const torsoY = shoulderY + squatDrop * 0.8;
+    lms[11] = { x: 0.43, y: torsoY, z: 0.02 * cycle, visibility: 0.98 };
+    lms[12] = { x: 0.57, y: torsoY, z: 0.02 * cycle, visibility: 0.98 };
+    lms[0]  = { x: 0.50, y: 0.16 + squatDrop * 0.8, z: 0.02 * cycle, visibility: 0.98 };
+    // Wide outward tracking knees
+    const kneeOutX = 0.05 * cycle;
+    lms[25] = { x: 0.40 - kneeOutX, y: kneeY + squatDrop * 0.35, z: 0.08 * cycle, visibility: 0.98 };
+    lms[26] = { x: 0.60 + kneeOutX, y: kneeY + squatDrop * 0.35, z: 0.08 * cycle, visibility: 0.98 };
+    // Hands cupped at center
+    lms[13] = { x: 0.44, y: torsoY + 0.18, z: 0.08, visibility: 0.98 };
+    lms[14] = { x: 0.56, y: torsoY + 0.18, z: 0.08, visibility: 0.98 };
+    lms[15] = { x: 0.48, y: torsoY + 0.28, z: 0.10, visibility: 0.98 };
+    lms[16] = { x: 0.52, y: torsoY + 0.28, z: 0.10, visibility: 0.98 };
+    return true;
+  }
+
+  // 14. BARBELL GOOD MORNING
+  if (exercise === 'gym_good_morning' || exercise === 'good_morning') {
+    const hingePushBackZ = -0.19 * cycle;
+    const trunkFwdZ = 0.26 * cycle;
+    const torsoY = shoulderY + cycle * 0.18;
+    lms[23] = { x: 0.44, y: hipY + 0.03 * cycle, z: hingePushBackZ, visibility: 0.98 };
+    lms[24] = { x: 0.56, y: hipY + 0.03 * cycle, z: hingePushBackZ, visibility: 0.98 };
+    lms[11] = { x: 0.43, y: torsoY, z: trunkFwdZ, visibility: 0.98 };
+    lms[12] = { x: 0.57, y: torsoY, z: trunkFwdZ, visibility: 0.98 };
+    lms[0]  = { x: 0.50, y: torsoY - 0.12, z: trunkFwdZ + 0.04, visibility: 0.98 };
+    lms[25] = { x: 0.43, y: kneeY, z: 0.02 * cycle, visibility: 0.98 };
+    lms[26] = { x: 0.57, y: kneeY, z: 0.02 * cycle, visibility: 0.98 };
+    lms[27] = { x: 0.43, y: ankleY, z: 0, visibility: 0.98 };
+    lms[28] = { x: 0.57, y: ankleY, z: 0, visibility: 0.98 };
+    // Hands holding bar behind upper back
+    lms[13] = { x: 0.38, y: torsoY - 0.02, z: trunkFwdZ - 0.04, visibility: 0.98 };
+    lms[14] = { x: 0.62, y: torsoY - 0.02, z: trunkFwdZ - 0.04, visibility: 0.98 };
+    lms[15] = { x: 0.39, y: torsoY - 0.05, z: trunkFwdZ - 0.02, visibility: 0.98 };
+    lms[16] = { x: 0.61, y: torsoY - 0.05, z: trunkFwdZ - 0.02, visibility: 0.98 };
+    return true;
+  }
+
+  // 15. BENCH PRESS & FLOOR PRESS
+  if (exercise === 'gym_bench_press' || exercise === 'bench_press' || exercise === 'gym_floor_press' || exercise === 'floor_press') {
+    const isFloor = exercise.includes('floor');
+    const pressLift = cycle * 0.20;
+    lms[0]  = { x: 0.50, y: 0.82, z: 0.38, visibility: 0.98 };
+    lms[11] = { x: 0.42, y: 0.82, z: 0.25, visibility: 0.98 };
+    lms[12] = { x: 0.58, y: 0.82, z: 0.25, visibility: 0.98 };
+    lms[23] = { x: 0.44, y: 0.82, z: -0.15, visibility: 0.98 };
+    lms[24] = { x: 0.56, y: 0.82, z: -0.15, visibility: 0.98 };
+    lms[25] = { x: 0.43, y: 0.74, z: -0.35, visibility: 0.98 };
+    lms[26] = { x: 0.57, y: 0.74, z: -0.35, visibility: 0.98 };
+    lms[27] = { x: 0.43, y: 0.88, z: -0.45, visibility: 0.98 };
+    lms[28] = { x: 0.57, y: 0.88, z: -0.45, visibility: 0.98 };
+    const elbowMinZ = isFloor ? 0.14 : 0.08;
+    const elbowZ = elbowMinZ + pressLift * 0.45;
+    const flare = isFault ? (0.06 * (1 - cycle)) : 0;
+    lms[13] = { x: 0.38 - flare, y: 0.80, z: elbowZ, visibility: 0.98 };
+    lms[14] = { x: 0.62 + flare, y: 0.80, z: elbowZ, visibility: 0.98 };
+    lms[15] = { x: 0.40, y: 0.80 - pressLift * 0.3, z: 0.25 + pressLift * 0.4, visibility: 0.98 };
+    lms[16] = { x: 0.60, y: 0.80 - pressLift * 0.3, z: 0.25 + pressLift * 0.4, visibility: 0.98 };
+    return true;
+  }
+
+  // 16. HAMMER CURL
+  if (exercise === 'gym_hammer_curl' || exercise === 'hammer_curl') {
+    const curlAngle = 20 + cycle * 125;
+    const rad = (curlAngle * Math.PI) / 180;
+    const armLen = 0.22;
+    lms[13] = { x: 0.42, y: 0.48, z: 0.04, visibility: 0.98 };
+    lms[14] = { x: 0.58, y: 0.48, z: 0.04, visibility: 0.98 };
+    const wristY = 0.48 - Math.sin(rad) * armLen;
+    const wristZ = 0.04 + Math.cos(rad) * armLen;
+    lms[15] = { x: 0.42, y: wristY, z: wristZ, visibility: 0.98 };
+    lms[16] = { x: 0.58, y: wristY, z: wristZ, visibility: 0.98 };
     return true;
   }
 

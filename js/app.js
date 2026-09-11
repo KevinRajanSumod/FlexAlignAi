@@ -154,7 +154,8 @@ export class FlexAlignApp {
     }
 
     // Evaluate Biomechanics
-    const evalResult = this.evaluator.evaluate(landmarks, side);
+    const isSimOptimal = this.isSimulationRunning && !this.simFaultActive;
+    const evalResult = this.evaluator.evaluate(landmarks, side, isSimOptimal);
 
     // Update Waveform & UI Telemetry
     this.waveform.push(evalResult.angle);
@@ -415,6 +416,12 @@ export class FlexAlignApp {
     this.hudManager.dismissCoachTip();
 
     this.isSimulationRunning = true;
+    this.simFaultActive = false;
+    const faultBtn = document.getElementById('btnSimFault');
+    if (faultBtn) {
+      faultBtn.classList.remove('active');
+      faultBtn.innerHTML = '<span class="btn-icon">⚠️</span> Test Fault';
+    }
     this.canvas.width = 1280;
     this.canvas.height = 720;
 

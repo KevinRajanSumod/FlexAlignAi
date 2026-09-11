@@ -104,7 +104,7 @@ export class MotionSimulator {
     const profile = inferMotionProfile(exDef);
     const speed = (profile && profile.tempoSpeed) ? profile.tempoSpeed : 1.4;
     const cycle = this._easedCycle(speed);
-    synthesizeProceduralMotion(profile, isFault, cycle, lms, dims);
+    synthesizeProceduralMotion(lms, exDef, isFault, cycle, dims);
     return this._smooth(lms);
   }
 }
