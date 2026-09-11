@@ -21,31 +21,35 @@
 /* ── HUD Status Bar & Badges ────────────────────────────────── */
 .hud-status-bar {
   position: absolute;
-  top: 14px;
+  top: 12px;
   left: 16px;
   right: 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  z-index: 6;
+  gap: 12px;
+  z-index: 60;
   pointer-events: none;
 }
 
 .hud-badge {
-  background: rgba(12, 15, 26, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 5px 14px;
+  background: rgba(12, 15, 26, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 6px 14px;
   border-radius: var(--radius-pill);
   font-size: 0.72rem;
   font-weight: 600;
   font-family: var(--font-mono);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--text-secondary);
   letter-spacing: 0.02em;
+  pointer-events: auto;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
 }
 
 .hud-live-dot {
@@ -58,8 +62,8 @@
 
 .hud-live-dot.active {
   background: var(--success);
-  box-shadow: 0 0 6px var(--success);
-  animation: pulseDot 2s infinite ease-in-out;
+  box-shadow: 0 0 8px var(--success);
+  animation: pulseDot 1.6s infinite ease-in-out;
 }
 
 @keyframes pulseDot {
@@ -71,7 +75,7 @@
 .hud-guidance-banner {
   position: absolute;
   top: auto;
-  bottom: 34px;
+  bottom: 46px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 85;

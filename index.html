@@ -174,42 +174,34 @@
           <div class="hud-corner hud-bl"></div>
           <div class="hud-corner hud-br"></div>
 
-          <!-- Status Bar -->
-          <div class="hud-status-bar">
-            <div class="hud-badge">
+          <!-- Top Telemetry & Controls HUD Header Bar -->
+          <div class="hud-status-bar" id="hudStatusBar">
+            <div class="hud-badge hud-badge-left">
               <div id="hudLiveDot" class="hud-live-dot"></div>
               <span id="hudTrackingText">STANDBY</span>
             </div>
-            <div class="hud-badge" id="hudActiveJointBadge">
+
+            <!-- Interactive 3D Avatar Control Dock (Active in 3D Sim Mode) -->
+            <div id="avatarControlDock" class="avatar-control-dock" style="display: none;">
+              <div class="avatar-dock-group views-group">
+                <span class="avatar-dock-label">VIEW:</span>
+                <button type="button" class="avatar-dock-btn active" id="btnViewFront" onclick="window.app.setAvatarView('front')" title="Front View (0°)">Front</button>
+                <button type="button" class="avatar-dock-btn" id="btnViewSide" onclick="window.app.setAvatarView('side')" title="Side Sagittal Profile (90°)">Side</button>
+                <button type="button" class="avatar-dock-btn" id="btnViewIso" onclick="window.app.setAvatarView('iso')" title="3/4 Isometric Perspective">3/4</button>
+                <button type="button" class="avatar-dock-btn" id="btnViewTop" onclick="window.app.setAvatarView('top')" title="Top Overhead Transverse View">Top</button>
+              </div>
+
+              <div class="avatar-dock-divider"></div>
+
+              <div class="avatar-dock-group actions-group">
+                <button type="button" class="avatar-dock-btn" id="btnAutoOrbit" onclick="window.app.toggleAvatarAutoOrbit()" title="360° Continuous Orbit Rotation">🔄 360° Orbit</button>
+                <button type="button" class="avatar-dock-btn" id="btnXRayMode" onclick="window.app.toggleAvatarXRay()" title="Toggle Holographic Skeletal X-Ray Mode">⚡ X-Ray</button>
+                <button type="button" class="avatar-dock-btn" onclick="window.app.resetAvatarView()" title="Reset Camera View to Default">↺ Reset</button>
+              </div>
+            </div>
+
+            <div class="hud-badge hud-badge-right" id="hudActiveJointBadge">
               KNEE · HIP-KNEE-ANKLE
-            </div>
-          </div>
-
-          <!-- Interactive 3D Avatar Control Dock (Active in 3D Sim Mode) -->
-          <div id="avatarControlDock" class="avatar-control-dock" style="display: none;">
-            <div class="avatar-dock-group views-group">
-              <span class="avatar-dock-label">VIEW:</span>
-              <button type="button" class="avatar-dock-btn active" id="btnViewFront" onclick="window.app.setAvatarView('front')" title="Front View (0°)">🎥 Front</button>
-              <button type="button" class="avatar-dock-btn" id="btnViewSide" onclick="window.app.setAvatarView('side')" title="Side Sagittal Profile (90°)">📐 Side</button>
-              <button type="button" class="avatar-dock-btn" id="btnViewIso" onclick="window.app.setAvatarView('iso')" title="3/4 Isometric Perspective">🧊 3/4</button>
-              <button type="button" class="avatar-dock-btn" id="btnViewTop" onclick="window.app.setAvatarView('top')" title="Top Overhead Transverse View">🔝 Top</button>
-            </div>
-
-            <div class="avatar-dock-divider"></div>
-
-            <div class="avatar-dock-group pan-group">
-              <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.panAvatar(-0.35, 0)" title="Shift Left (Pan Left)">◀</button>
-              <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.panAvatar(0.35, 0)" title="Shift Right (Pan Right)">▶</button>
-              <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.panAvatar(0, 0.35)" title="Shift Up">▲</button>
-              <button type="button" class="avatar-dock-btn icon-only" onclick="window.app.panAvatar(0, -0.35)" title="Shift Down">▼</button>
-            </div>
-
-            <div class="avatar-dock-divider"></div>
-
-            <div class="avatar-dock-group actions-group">
-              <button type="button" class="avatar-dock-btn" id="btnAutoOrbit" onclick="window.app.toggleAvatarAutoOrbit()" title="360° Continuous Orbit Rotation">🔄 360° Orbit</button>
-              <button type="button" class="avatar-dock-btn" id="btnXRayMode" onclick="window.app.toggleAvatarXRay()" title="Toggle Holographic Skeletal X-Ray Mode">⚡ X-Ray</button>
-              <button type="button" class="avatar-dock-btn" onclick="window.app.resetAvatarView()" title="Reset Camera View to Default">↺ Reset</button>
             </div>
           </div>
 
