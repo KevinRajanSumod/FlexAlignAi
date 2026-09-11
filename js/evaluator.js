@@ -984,23 +984,46 @@ export class ExerciseEvaluator {
           const w = isLeft ? landmarks[15] : landmarks[16];
           mainAngle = calculateJointAngle(s, e, w);
         }
-        const shoulderWidth = Math.hypot(landmarks[11].x - landmarks[12].x, landmarks[11].y - landmarks[12].y) || 0.25;
-        const flare = Math.max(Math.abs(landmarks[13].x - landmarks[23].x), Math.abs(landmarks[14].x - landmarks[24].x)) / shoulderWidth;
-        const flareThresh = (customDef.faultCriteria && customDef.faultCriteria.lateralDriftThreshold) || 0.28;
-        if (flare > flareThresh) {
-          isFault = true;
-          faultLimb = 'elbows';
-          faultMessage = customDef.faultMessage || '⚠️ Elbow Flare! Keep Forearms Aligned';
-        }
-        const torsoLean = Math.max(
-          calculateTorsoLean(landmarks[11], landmarks[23]),
-          calculateTorsoLean(landmarks[12], landmarks[24])
-        );
-        const maxLean = (customDef.faultCriteria && customDef.faultCriteria.torsoLeanThreshold) || 20;
-        if (torsoLean > maxLean) {
-          isFault = true;
-          faultLimb = 'trunk';
-          faultMessage = customDef.faultMessage || '⚠️ Torso Momentum / Cheating with Spine!';
+        const isPlankPosture = (mp.posture === 'plank' || (customDef.name || '').toLowerCase().includes('push') || (customDef.id || '').toLowerCase().includes('push') || (customDef.name || '').toLowerCase().includes('plank'));
+        
+        if (isPlankPosture) {
+          // Plank Spine Alignment: Shoulder - Hip - Ankle straight line (160° - 180°)
+          const spineL = calculateJointAngle(landmarks[11], landmarks[23], landmarks[27] || landmarks[25]);
+          const spineR = calculateJointAngle(landmarks[12], landmarks[24], landmarks[28] || landmarks[26]);
+          const spineAngle = Math.round((spineL + spineR) / 2);
+
+          // Sagging hips or excessive pike:
+          if (spineAngle < 150) {
+            isFault = true;
+            faultLimb = 'trunk';
+            faultMessage = '⚠️ Sagging Hips / Broken Plank! Squeeze Core & Glutes';
+          }
+          // Flare check:
+          const elbowFlare = Math.abs(landmarks[13].x - landmarks[11].x) + Math.abs(landmarks[14].x - landmarks[12].x);
+          if (elbowFlare > 0.32) {
+            isFault = true;
+            faultLimb = 'elbows';
+            faultMessage = '⚠️ Excessive Elbow Flare! Tuck Elbows 45°';
+          }
+        } else {
+          const shoulderWidth = Math.hypot(landmarks[11].x - landmarks[12].x, landmarks[11].y - landmarks[12].y) || 0.25;
+          const flare = Math.max(Math.abs(landmarks[13].x - landmarks[23].x), Math.abs(landmarks[14].x - landmarks[24].x)) / shoulderWidth;
+          const flareThresh = (customDef.faultCriteria && customDef.faultCriteria.lateralDriftThreshold) || 0.28;
+          if (flare > flareThresh) {
+            isFault = true;
+            faultLimb = 'elbows';
+            faultMessage = customDef.faultMessage || '⚠️ Elbow Flare! Keep Forearms Aligned';
+          }
+          const torsoLean = Math.max(
+            calculateTorsoLean(landmarks[11], landmarks[23]),
+            calculateTorsoLean(landmarks[12], landmarks[24])
+          );
+          const maxLean = (customDef.faultCriteria && customDef.faultCriteria.torsoLeanThreshold) || 20;
+          if (torsoLean > maxLean) {
+            isFault = true;
+            faultLimb = 'trunk';
+            faultMessage = customDef.faultMessage || '⚠️ Torso Momentum / Cheating with Spine!';
+          }
         }
       } else if (joint === 'SHOULDER') {
         // Hip - Shoulder - Elbow

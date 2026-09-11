@@ -12,6 +12,7 @@
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import { getExerciseDefinition } from './exercises.js';
 
 export class Avatar3DRenderer {
   constructor() {
@@ -431,11 +432,14 @@ export class Avatar3DRenderer {
     this._placeLimb(this.segments.abdomen, splitPoint, midHip, 1.04, 0.70);
 
     // ── Neck & Head ──
+    const spineDir = new THREE.Vector3().subVectors(midShoulder, midHip).normalize();
+    if (spineDir.lengthSq() < 0.001) spineDir.set(0, 1, 0);
+
     const neckBase = midShoulder.clone();
-    const neckTop = midShoulder.clone().add(new THREE.Vector3(0, 0.14, (posNose.z - midShoulder.z) * 0.3));
+    const neckTop = midShoulder.clone().addScaledVector(spineDir, 0.14);
     this._placeLimb(this.segments.neck, neckBase, neckTop, 0.9, 0.9);
 
-    const headPos = midShoulder.clone().add(new THREE.Vector3(0, 0.28, (posNose.z - midShoulder.z) * 0.5));
+    const headPos = midShoulder.clone().addScaledVector(spineDir, 0.28);
     this.segments.head.position.copy(headPos);
 
     // ── Arms ──
@@ -461,11 +465,25 @@ export class Avatar3DRenderer {
     this._placeLimb(this.segments.shinL, posKneeL, posAnkleL, 0.98, 0.98);
     this._placeLimb(this.segments.shinR, posKneeR, posAnkleR, 0.98, 0.98);
 
-    // Feet planted flat on ground base
-    this.segments.footL.position.set(posAnkleL.x, posAnkleL.y - 0.05, posAnkleL.z + 0.06);
-    this.segments.footR.position.set(posAnkleR.x, posAnkleR.y - 0.05, posAnkleR.z + 0.06);
-    this.segments.footL.rotation.set(0, 0.14, 0);
-    this.segments.footR.rotation.set(0, -0.14, 0);
+    // ── Feet: naturally orient flat when standing or on toes when in plank ──
+    const shinDirL = new THREE.Vector3().subVectors(posAnkleL, posKneeL).normalize();
+    const shinDirR = new THREE.Vector3().subVectors(posAnkleR, posKneeR).normalize();
+    const isHorizontalL = Math.abs(shinDirL.y) < 0.65;
+    const isHorizontalR = Math.abs(shinDirR.y) < 0.65;
+
+    this.segments.footL.position.set(posAnkleL.x, posAnkleL.y - 0.04, posAnkleL.z + (isHorizontalL ? -0.04 : 0.06));
+    this.segments.footR.position.set(posAnkleR.x, posAnkleR.y - 0.04, posAnkleR.z + (isHorizontalR ? -0.04 : 0.06));
+
+    if (isHorizontalL) {
+      this.segments.footL.rotation.set(-Math.PI / 4, 0.14, 0);
+    } else {
+      this.segments.footL.rotation.set(0, 0.14, 0);
+    }
+    if (isHorizontalR) {
+      this.segments.footR.rotation.set(-Math.PI / 4, -0.14, 0);
+    } else {
+      this.segments.footR.rotation.set(0, -0.14, 0);
+    }
 
     // ── Joint Spheres ──
     this.joints.shoulderL.position.copy(posShoulderL);
@@ -538,6 +556,25 @@ export class Avatar3DRenderer {
     } else if (exercise === 'pt_elbow_ext' || exercise === 'pt_elbow_flex') {
       activeJoints = isBoth ? ['elbowL', 'elbowR'] : [isLeft ? 'elbowL' : 'elbowR'];
       faultLimbs = ['bicepL', 'bicepR', 'forearmL', 'forearmR'];
+    } else {
+      // Dynamic AI-generated / custom exercises
+      const customDef = getExerciseDefinition(exercise);
+      if (customDef) {
+        let j = (customDef.jointLabel || 'KNEE').toUpperCase();
+        if (j.includes('ELBOW') || j.includes('BICEP') || j.includes('TRICEP')) {
+          activeJoints = isBoth ? ['elbowL', 'elbowR'] : [isLeft ? 'elbowL' : 'elbowR'];
+          faultLimbs = ['forearmL', 'forearmR', 'chest', 'abdomen'];
+        } else if (j.includes('SHOULDER') || j.includes('DELTOID')) {
+          activeJoints = isBoth ? ['shoulderL', 'shoulderR'] : [isLeft ? 'shoulderL' : 'shoulderR'];
+          faultLimbs = ['chest', 'abdomen'];
+        } else if (j.includes('HIP')) {
+          activeJoints = isBoth ? ['hipL', 'hipR'] : [isLeft ? 'hipL' : 'hipR'];
+          faultLimbs = ['chest', 'abdomen', 'thighL', 'thighR'];
+        } else {
+          activeJoints = isBoth ? ['kneeL', 'kneeR'] : [isLeft ? 'kneeL' : 'kneeR'];
+          faultLimbs = ['thighL', 'thighR', 'shinL', 'shinR'];
+        }
+      }
     }
 
     // On Fault: illuminate relevant 3D anatomical segments in warning crimson red

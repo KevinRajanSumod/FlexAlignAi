@@ -302,22 +302,33 @@ Return ONLY a valid, raw JSON object (no markdown, no backticks, no explanatory 
     "safeCeiling": 160
   },
   "motionProfile": {
-    "movementType": "curl" | "press_overhead" | "press_horizontal" | "pushdown" | "lateral_raise" | "front_raise" | "squat" | "hinge_deadlift" | "lunge" | "seated_leg_ext" | "calf_raise" | "row",
-    "posture": "standing" | "seated" | "plank" | "hinged",
-    "tempoSpeed": 1.4,
+    "movementType": "pushup" | "press_horizontal" | "curl" | "press_overhead" | "pushdown" | "lateral_raise" | "front_raise" | "squat" | "hinge_deadlift" | "lunge" | "seated_leg_ext" | "calf_raise" | "row" | "pullup" | "dip",
+    "posture": "plank" | "standing" | "supine" | "seated" | "hinged" | "lunge",
+    "tempoSpeed": 1.3,
     "primaryJoint": "ELBOW" | "KNEE" | "HIP" | "SHOULDER",
     "startAngle": 165,
-    "targetAngle": 45,
-    "faultAngle": 85,
-    "faultType": "sway" | "flare" | "valgus" | "lean" | "incomplete_rom",
+    "targetAngle": 80,
+    "faultAngle": 110,
+    "faultType": "flare" | "hip_sag" | "valgus" | "sway" | "lean" | "incomplete_rom",
     "torsoLean": 0,
     "faultTorsoLean": 25,
     "hipDropY": 0.0,
     "hipHingeZ": 0.0,
     "kneeBendDeg": 0,
-    "armPattern": "bicep_curl" | "overhead_press" | "tricep_pushdown" | "lateral_raise" | "front_raise" | "row_pull" | "chest_push" | "counterbalance" | "stationary"
+    "armPattern": "pushup" | "bicep_curl" | "overhead_press" | "tricep_pushdown" | "lateral_raise" | "front_raise" | "row_pull" | "chest_push" | "counterbalance" | "stationary"
   }
-}`;
+}
+
+CRITICAL 3D POSTURE KINEMATICS RULES:
+- For push-ups, planks, burpees: "posture" MUST be "plank", "movementType" MUST be "pushup", "armPattern" MUST be "pushup", "jointLabel" MUST be "ELBOW", "targetAngle" MUST be 80, "startAngle" MUST be 165.
+- For bench press, floor press, chest press: "posture" MUST be "supine", "movementType" MUST be "press_horizontal", "jointLabel" MUST be "ELBOW".
+- For rows (bent-over row, barbell row): "posture" MUST be "hinged", "movementType" MUST be "row", "armPattern" MUST be "row_pull".
+- For pull-ups, chin-ups, lat pulldowns: "movementType" MUST be "pullup", "jointLabel" MUST be "ELBOW".
+- For Romanian deadlift, deadlift, good mornings: "posture" MUST be "hinged", "movementType" MUST be "hinge_deadlift", "jointLabel" MUST be "HIP".
+- For squats: "posture" MUST be "standing", "movementType" MUST be "squat", "jointLabel" MUST be "KNEE".
+- For lunges, Bulgarian split squats: "posture" MUST be "lunge", "movementType" MUST be "lunge", "jointLabel" MUST be "KNEE".
+- For bicep curls: "posture" MUST be "standing", "movementType" MUST be "curl", "jointLabel" MUST be "ELBOW".
+- For overhead press: "posture" MUST be "standing", "movementType" MUST be "press_overhead", "jointLabel" MUST be "ELBOW" or "SHOULDER".`;
 
     const requestBody = {
       system_instruction: {
@@ -489,14 +500,30 @@ Return ONLY a valid, raw JSON object (no markdown, no backticks, no explanatory 
         hipHingeZ: -0.06,
         armPattern: 'counterbalance'
       };
-    } else if (name.includes('push-up') || name.includes('pushup') || name.includes('bench') || name.includes('chest')) {
+    } else if (name.includes('push-up') || name.includes('pushup') || name.includes('press-up')) {
       return {
-        movementType: 'press_horizontal',
+        movementType: 'pushup',
         posture: 'plank',
-        tempoSpeed: 1.2,
+        tempoSpeed: 1.3,
         primaryJoint: 'ELBOW',
         startAngle: 165,
-        targetAngle: target,
+        targetAngle: target || 80,
+        faultAngle: 110,
+        faultType: 'flare',
+        torsoLean: 0,
+        faultTorsoLean: 18,
+        hipDropY: 0.0,
+        hipHingeZ: 0.0,
+        armPattern: 'pushup'
+      };
+    } else if (name.includes('bench') || name.includes('chest press') || name.includes('floor press')) {
+      return {
+        movementType: 'press_horizontal',
+        posture: 'supine',
+        tempoSpeed: 1.3,
+        primaryJoint: 'ELBOW',
+        startAngle: 165,
+        targetAngle: target || 80,
         faultAngle: 110,
         faultType: 'flare',
         torsoLean: 0,
@@ -504,6 +531,22 @@ Return ONLY a valid, raw JSON object (no markdown, no backticks, no explanatory 
         hipDropY: 0.0,
         hipHingeZ: 0.0,
         armPattern: 'chest_push'
+      };
+    } else if (name.includes('row') || name.includes('pull')) {
+      return {
+        movementType: 'row',
+        posture: 'hinged',
+        tempoSpeed: 1.3,
+        primaryJoint: 'ELBOW',
+        startAngle: 165,
+        targetAngle: target || 65,
+        faultAngle: 105,
+        faultType: 'lean',
+        torsoLean: 35,
+        faultTorsoLean: 55,
+        hipDropY: 0.06,
+        hipHingeZ: -0.22,
+        armPattern: 'row_pull'
       };
     } else {
       return {
@@ -833,9 +876,9 @@ INSTRUCTIONS:
         faultMessage: '⚠️ Form Fault: Excessive Elbow Flare (> 70°) or Sagging Hip Core Breakdown!',
         faultCriteria: { flareThreshold: 0.28, hipSagThreshold: 15 },
         motionProfile: {
-          movementType: 'press_horizontal',
+          movementType: 'pushup',
           posture: 'plank',
-          tempoSpeed: 1.2,
+          tempoSpeed: 1.3,
           primaryJoint: 'ELBOW',
           startAngle: 165,
           targetAngle: 80,
@@ -845,7 +888,7 @@ INSTRUCTIONS:
           faultTorsoLean: 18,
           hipDropY: 0.0,
           hipHingeZ: 0.0,
-          armPattern: 'chest_push'
+          armPattern: 'pushup'
         },
         isCustom: true
       };
