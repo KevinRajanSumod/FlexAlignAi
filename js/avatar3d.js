@@ -656,7 +656,9 @@ export class Avatar3DRenderer {
       dumbbellL: this._createHexDumbbell(),
       dumbbellR: this._createHexDumbbell(),
       gobletKettlebell: this._createKettlebell(),
-      barbell: this._createBarbell()
+      barbell: this._createBarbell(),
+      pullUpBar: this._createPullUpBar(),
+      dipBars: this._createDipBars()
     };
 
     // Add all to root, initially hidden until exercise demands
@@ -669,36 +671,51 @@ export class Avatar3DRenderer {
   _createHexDumbbell() {
     const dbGroup = new THREE.Group();
 
-    // Chrome knurled handle
-    const handleGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.18, 14);
+    // Chrome knurled handle (grip zone)
+    const handleGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.17, 16);
     const handle = new THREE.Mesh(handleGeo, this._chromeMaterial());
     handle.rotation.z = Math.PI / 2;
     handle.castShadow = true;
     dbGroup.add(handle);
 
-    // Left and Right Hex Weight Plates
-    const hexGeo = new THREE.CylinderGeometry(0.062, 0.062, 0.055, 6);
-    const plateL = new THREE.Mesh(hexGeo, this._steelMaterial());
-    plateL.position.x = -0.09;
-    plateL.rotation.z = Math.PI / 2;
-    plateL.castShadow = true;
-    dbGroup.add(plateL);
+    // Knurled center grip band
+    const gripGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.08, 16);
+    const grip = new THREE.Mesh(gripGeo, this._clothingMaterial(0x273450));
+    grip.rotation.z = Math.PI / 2;
+    dbGroup.add(grip);
 
-    const plateR = new THREE.Mesh(hexGeo, this._steelMaterial());
-    plateR.position.x = 0.09;
-    plateR.rotation.z = Math.PI / 2;
-    plateR.castShadow = true;
-    dbGroup.add(plateR);
+    // Inner bevel collars
+    const collarGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.016, 14);
+    [-0.068, 0.068].forEach(x => {
+      const collar = new THREE.Mesh(collarGeo, this._steelMaterial());
+      collar.position.x = x;
+      collar.rotation.z = Math.PI / 2;
+      dbGroup.add(collar);
+    });
 
-    // Accent ring on plates
-    const ringGeo = new THREE.TorusGeometry(0.063, 0.005, 8, 16);
-    const ringL = new THREE.Mesh(ringGeo, this._accentMaterial(0x38bdf8));
-    ringL.position.x = -0.09;
-    ringL.rotation.y = Math.PI / 2;
-    dbGroup.add(ringL);
-    const ringR = ringL.clone();
-    ringR.position.x = 0.09;
-    dbGroup.add(ringR);
+    // Left and Right Hexagonal Rubber Bumper Heads
+    const hexGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.052, 6);
+    [-0.096, 0.096].forEach(x => {
+      const plate = new THREE.Mesh(hexGeo, this._steelMaterial());
+      plate.position.x = x;
+      plate.rotation.z = Math.PI / 2;
+      plate.castShadow = true;
+      dbGroup.add(plate);
+
+      // Outer beveled cap
+      const capGeo = new THREE.CylinderGeometry(0.052, 0.064, 0.016, 6);
+      const cap = new THREE.Mesh(capGeo, this._steelMaterial());
+      cap.position.x = x > 0 ? x + 0.028 : x - 0.028;
+      cap.rotation.z = Math.PI / 2;
+      dbGroup.add(cap);
+
+      // Cyan accent ring
+      const ringGeo = new THREE.TorusGeometry(0.066, 0.005, 8, 20);
+      const ring = new THREE.Mesh(ringGeo, this._accentMaterial(0x38bdf8));
+      ring.position.x = x;
+      ring.rotation.y = Math.PI / 2;
+      dbGroup.add(ring);
+    });
 
     return dbGroup;
   }
@@ -713,13 +730,13 @@ export class Avatar3DRenderer {
     bell.castShadow = true;
     kbGroup.add(bell);
 
-    // Flat bottom
+    // Flat bottom platform
     const bottomGeo = new THREE.CylinderGeometry(0.068, 0.068, 0.02, 16);
     const bottom = new THREE.Mesh(bottomGeo, this._steelMaterial());
     bottom.position.y = -0.105;
     kbGroup.add(bottom);
 
-    // Ergonomic wide handle
+    // Ergonomic wide chrome handle
     const handleGeo = new THREE.TorusGeometry(0.075, 0.016, 12, 24, Math.PI);
     const handle = new THREE.Mesh(handleGeo, this._chromeMaterial());
     handle.position.y = 0.095;
@@ -736,7 +753,7 @@ export class Avatar3DRenderer {
     hornR.position.set(0.075, 0.08, 0);
     kbGroup.add(hornR);
 
-    // Weight spec badge
+    // Laser-etched weight spec badge
     const badgeGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.01, 16);
     const badge = new THREE.Mesh(badgeGeo, this._accentMaterial(0x0ea5e9));
     badge.position.set(0, 0, 0.11);
@@ -749,39 +766,149 @@ export class Avatar3DRenderer {
   _createBarbell() {
     const bbGroup = new THREE.Group();
 
-    // Olympic Chrome Bar (1.4m span)
-    const barGeo = new THREE.CylinderGeometry(0.016, 0.016, 1.5, 16);
+    // 1. Olympic Chrome Bar (1.62m span)
+    const barGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.62, 16);
     const bar = new THREE.Mesh(barGeo, this._chromeMaterial());
     bar.rotation.z = Math.PI / 2;
     bar.castShadow = true;
     bbGroup.add(bar);
 
-    // Olympic Bumper Plates (Left & Right)
-    const bumperGeo = new THREE.CylinderGeometry(0.19, 0.19, 0.055, 24);
-    const plateL = new THREE.Mesh(bumperGeo, this._steelMaterial());
-    plateL.position.x = -0.62;
-    plateL.rotation.z = Math.PI / 2;
-    plateL.castShadow = true;
-    bbGroup.add(plateL);
+    // Grip knurling markings on the bar
+    [-0.22, 0.22, -0.42, 0.42].forEach(x => {
+      const markGeo = new THREE.CylinderGeometry(0.0155, 0.0155, 0.012, 16);
+      const mark = new THREE.Mesh(markGeo, this._accentMaterial(0x0ea5e9));
+      mark.position.x = x;
+      mark.rotation.z = Math.PI / 2;
+      bbGroup.add(mark);
+    });
 
-    const plateR = new THREE.Mesh(bumperGeo, this._steelMaterial());
-    plateR.position.x = 0.62;
-    plateR.rotation.z = Math.PI / 2;
-    plateR.castShadow = true;
-    bbGroup.add(plateR);
+    // 2. Inner Sleeve Stops & Revolving Bushings
+    [-0.50, 0.50].forEach(x => {
+      const stopGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.025, 16);
+      const stop = new THREE.Mesh(stopGeo, this._chromeMaterial());
+      stop.position.x = x;
+      stop.rotation.z = Math.PI / 2;
+      bbGroup.add(stop);
+    });
 
-    // Outer collar locks
-    const collarGeo = new THREE.CylinderGeometry(0.026, 0.026, 0.03, 14);
-    const collarL = new THREE.Mesh(collarGeo, this._accentMaterial(0x38bdf8));
-    collarL.position.x = -0.57;
-    collarL.rotation.z = Math.PI / 2;
-    bbGroup.add(collarL);
+    // 3. Olympic Bumper Plates (Full 450mm Competition Plates + 10kg Plates)
+    [-0.56, 0.56].forEach(x => {
+      const sign = x > 0 ? 1 : -1;
 
-    const collarR = collarL.clone();
-    collarR.position.x = 0.57;
-    bbGroup.add(collarR);
+      // 20kg Large Bumper Plate
+      const bumperGeo = new THREE.CylinderGeometry(0.21, 0.21, 0.055, 32);
+      const plateBig = new THREE.Mesh(bumperGeo, this._steelMaterial());
+      plateBig.position.x = x;
+      plateBig.rotation.z = Math.PI / 2;
+      plateBig.castShadow = true;
+      bbGroup.add(plateBig);
+
+      // Cyan accent perimeter ring
+      const ringGeo = new THREE.TorusGeometry(0.212, 0.006, 8, 32);
+      const ring = new THREE.Mesh(ringGeo, this._accentMaterial(0x38bdf8));
+      ring.position.x = x;
+      ring.rotation.y = Math.PI / 2;
+      bbGroup.add(ring);
+
+      // 10kg Secondary Plate
+      const smallPlateGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.042, 28);
+      const plateSmall = new THREE.Mesh(smallPlateGeo, this._steelMaterial());
+      plateSmall.position.x = x + sign * 0.055;
+      plateSmall.rotation.z = Math.PI / 2;
+      plateSmall.castShadow = true;
+      bbGroup.add(plateSmall);
+
+      // Quick-Release Collar Lock
+      const collarGeo = new THREE.CylinderGeometry(0.026, 0.026, 0.03, 16);
+      const collar = new THREE.Mesh(collarGeo, this._accentMaterial(0x0ea5e9));
+      collar.position.x = x + sign * 0.095;
+      collar.rotation.z = Math.PI / 2;
+      bbGroup.add(collar);
+    });
 
     return bbGroup;
+  }
+
+  _createPullUpBar() {
+    const rigGroup = new THREE.Group();
+
+    // Top horizontal chin-up / pull-up bar (1.35m span)
+    const barGeo = new THREE.CylinderGeometry(0.016, 0.016, 1.35, 16);
+    const bar = new THREE.Mesh(barGeo, this._chromeMaterial());
+    bar.rotation.z = Math.PI / 2;
+    bar.position.set(0, 1.45, 0);
+    bar.castShadow = true;
+    rigGroup.add(bar);
+
+    // Left and Right knurled foam grip pads
+    const padGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.22, 16);
+    const padL = new THREE.Mesh(padGeo, this._clothingMaterial(0x1e273c));
+    padL.position.set(-0.35, 1.45, 0);
+    padL.rotation.z = Math.PI / 2;
+    rigGroup.add(padL);
+
+    const padR = padL.clone();
+    padR.position.set(0.35, 1.45, 0);
+    rigGroup.add(padR);
+
+    // Cyan accent rings
+    const ringGeo = new THREE.TorusGeometry(0.023, 0.004, 8, 16);
+    const ringL = new THREE.Mesh(ringGeo, this._accentMaterial(0x38bdf8));
+    ringL.position.set(-0.46, 1.45, 0);
+    ringL.rotation.y = Math.PI / 2;
+    rigGroup.add(ringL);
+
+    const ringR = ringL.clone();
+    ringR.position.set(0.46, 1.45, 0);
+    rigGroup.add(ringR);
+
+    // Dual vertical support columns
+    const postGeo = new THREE.CylinderGeometry(0.025, 0.025, 2.7, 16);
+    const postL = new THREE.Mesh(postGeo, this._steelMaterial());
+    postL.position.set(-0.67, 0.1, 0);
+    postL.castShadow = true;
+    rigGroup.add(postL);
+
+    const postR = postL.clone();
+    postR.position.set(0.67, 0.1, 0);
+    rigGroup.add(postR);
+
+    return rigGroup;
+  }
+
+  _createDipBars() {
+    const dipGroup = new THREE.Group();
+
+    // Dual parallel bars at hip height
+    const railGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.95, 16);
+    const railL = new THREE.Mesh(railGeo, this._chromeMaterial());
+    railL.position.set(-0.36, 0.22, 0);
+    railL.rotation.x = Math.PI / 2;
+    railL.castShadow = true;
+    dipGroup.add(railL);
+
+    const railR = railL.clone();
+    railR.position.set(0.36, 0.22, 0);
+    dipGroup.add(railR);
+
+    // Left and Right support legs down to floor
+    [-0.36, 0.36].forEach(x => {
+      [-0.32, 0.32].forEach(z => {
+        const legGeo = new THREE.CylinderGeometry(0.022, 0.022, 1.44, 14);
+        const leg = new THREE.Mesh(legGeo, this._steelMaterial());
+        leg.position.set(x, -0.50, z);
+        leg.castShadow = true;
+        dipGroup.add(leg);
+
+        // Rubber floor foot
+        const footGeo = new THREE.CylinderGeometry(0.038, 0.042, 0.03, 14);
+        const foot = new THREE.Mesh(footGeo, this._accentMaterial(0x0ea5e9));
+        foot.position.set(x, -1.21, z);
+        dipGroup.add(foot);
+      });
+    });
+
+    return dipGroup;
   }
 
   _applyDefaultPose() {
@@ -997,50 +1124,200 @@ export class Avatar3DRenderer {
   }
 
   _updateEquipment(posWristL, posWristR, dirForearmL, dirForearmR, exercise = '') {
-    const ex = exercise.toLowerCase();
+    const ex = (exercise || this._currentExercise || '').toLowerCase();
 
-    const isGoblet = ex.includes('goblet');
-    const isBarbell = ex.includes('deadlift') || ex.includes('rdl') || ex.includes('barbell') || ex.includes('good_morning');
-    const isDumbbell = ex.includes('curl') || ex.includes('press') || ex.includes('raise') || ex.includes('lunge') || ex.includes('split') || ex.includes('row') || ex.includes('extension');
+    // 1. Resolve full exercise metadata & keywords
+    const customDef = getExerciseDefinition(ex);
+    const defName = ((customDef && customDef.name) || '').toLowerCase();
+    const defTip = ((customDef && customDef.tip) || '').toLowerCase();
+    const defMovement = ((customDef && customDef.motionProfile && customDef.motionProfile.movementType) || '').toLowerCase();
 
-    // 1. Goblet Kettlebell (Cupped at upper sternum between both hands)
+    const fullStr = `${ex} ${defName} ${defTip} ${defMovement}`;
+
+    // 2. Strict Calisthenics / Bodyweight Identification (zero equipment)
+    const isBodyweight = fullStr.includes('pushup') ||
+                         fullStr.includes('push-up') ||
+                         fullStr.includes('plank') ||
+                         fullStr.includes('crunch') ||
+                         fullStr.includes('pendulum') ||
+                         fullStr.includes('wall_angel') ||
+                         fullStr.includes('cat_cow') ||
+                         fullStr.includes('bird_dog') ||
+                         fullStr.includes('knee_ext') ||
+                         fullStr.includes('slr') ||
+                         fullStr.includes('mini_squat') ||
+                         fullStr.includes('bird') ||
+                         (fullStr.includes('squat') && !fullStr.includes('goblet') && !fullStr.includes('sumo') && !fullStr.includes('split'));
+
+    // 3. Barbell Identification
+    const isBarbell = !isBodyweight && (
+      fullStr.includes('barbell') ||
+      fullStr.includes('deadlift') ||
+      fullStr.includes('rdl') ||
+      fullStr.includes('romanian') ||
+      fullStr.includes('bent_row') ||
+      fullStr.includes('bench_press') ||
+      fullStr.includes('good_morning') ||
+      fullStr.includes('glute_bridge') ||
+      fullStr.includes('hip_thrust')
+    );
+
+    // 4. Kettlebell Identification
+    const isKettlebell = !isBodyweight && !isBarbell && (
+      fullStr.includes('goblet') ||
+      fullStr.includes('kettlebell') ||
+      fullStr.includes('swing') ||
+      fullStr.includes('sumo')
+    );
+
+    // 5. Overhead Pull-Up Rig Identification
+    const isPullUp = !isBodyweight && (
+      fullStr.includes('pullup') ||
+      fullStr.includes('pull-up') ||
+      fullStr.includes('chinup') ||
+      fullStr.includes('chin-up')
+    );
+
+    // 6. Parallel Dip Bars Identification
+    const isDip = !isBodyweight && (
+      fullStr.includes('dip') && !fullStr.includes('deadlift')
+    );
+
+    // 7. Dumbbell Identification
+    const isDumbbell = !isBodyweight && !isBarbell && !isKettlebell && !isPullUp && !isDip && (
+      fullStr.includes('dumbbell') ||
+      fullStr.includes('curl') ||
+      fullStr.includes('hammer') ||
+      fullStr.includes('raise') ||
+      fullStr.includes('lateral') ||
+      fullStr.includes('scaption') ||
+      fullStr.includes('press') ||
+      fullStr.includes('arnold') ||
+      fullStr.includes('lunge') ||
+      fullStr.includes('split') ||
+      fullStr.includes('extension') ||
+      fullStr.includes('calf_raise') ||
+      fullStr.includes('row')
+    );
+
+    const handPosL = this.segments.handL ? this.segments.handL.position : posWristL.clone().addScaledVector(dirForearmL, 0.045);
+    const handPosR = this.segments.handR ? this.segments.handR.position : posWristR.clone().addScaledVector(dirForearmR, 0.045);
+
+    // ── ATTACHMENT 1: Goblet / Sumo Competition Kettlebell ──
     if (this.equipment.gobletKettlebell) {
-      if (isGoblet) {
+      if (isKettlebell) {
         this.equipment.gobletKettlebell.visible = true;
-        const midHands = new THREE.Vector3().addVectors(posWristL, posWristR).multiplyScalar(0.5);
-        this.equipment.gobletKettlebell.position.set(midHands.x, midHands.y - 0.02, midHands.z + 0.05);
+        const midHands = new THREE.Vector3().addVectors(handPosL, handPosR).multiplyScalar(0.5);
+        if (fullStr.includes('sumo')) {
+          // Sumo squat: kettlebell held between thighs hanging straight down
+          this.equipment.gobletKettlebell.position.set(midHands.x, midHands.y - 0.10, midHands.z + 0.02);
+        } else {
+          // Goblet squat: kettlebell cupped at sternum/chest
+          this.equipment.gobletKettlebell.position.set(midHands.x, midHands.y - 0.095, midHands.z + 0.04);
+        }
         this.equipment.gobletKettlebell.rotation.set(0, 0, 0);
       } else {
         this.equipment.gobletKettlebell.visible = false;
       }
     }
 
-    // 2. Barbell (Dual grip bridging hands)
+    // ── ATTACHMENT 2: Tournament Olympic Barbell ──
     if (this.equipment.barbell) {
       if (isBarbell) {
         this.equipment.barbell.visible = true;
-        const midHands = new THREE.Vector3().addVectors(posWristL, posWristR).multiplyScalar(0.5);
-        this.equipment.barbell.position.copy(midHands);
-        this.equipment.barbell.rotation.set(0, 0, 0);
+        const defaultDir = new THREE.Vector3(1, 0, 0);
+
+        if (fullStr.includes('good_morning')) {
+          // Good Morning: Barbell rests securely on upper traps / shoulders
+          const posShoulderL = this.joints.shoulderL ? this.joints.shoulderL.position : new THREE.Vector3(-0.35, 1.4, 0);
+          const posShoulderR = this.joints.shoulderR ? this.joints.shoulderR.position : new THREE.Vector3(0.35, 1.4, 0);
+          const midShoulder = new THREE.Vector3().addVectors(posShoulderL, posShoulderR).multiplyScalar(0.5);
+          const barDir = new THREE.Vector3().subVectors(posShoulderR, posShoulderL).normalize();
+          if (barDir.lengthSq() > 0.01) {
+            this.equipment.barbell.quaternion.setFromUnitVectors(defaultDir, barDir);
+          }
+          this.equipment.barbell.position.set(midShoulder.x, midShoulder.y + 0.04, midShoulder.z - 0.07);
+        } else if (fullStr.includes('glute_bridge') || fullStr.includes('hip_thrust')) {
+          // Glute Bridge / Hip Thrust: Barbell rests across hips / pelvis
+          const posHipL = this.joints.hipL ? this.joints.hipL.position : new THREE.Vector3(-0.16, 0.8, 0);
+          const posHipR = this.joints.hipR ? this.joints.hipR.position : new THREE.Vector3(0.16, 0.8, 0);
+          const midHip = new THREE.Vector3().addVectors(posHipL, posHipR).multiplyScalar(0.5);
+          const barDir = new THREE.Vector3().subVectors(posHipR, posHipL).normalize();
+          if (barDir.lengthSq() > 0.01) {
+            this.equipment.barbell.quaternion.setFromUnitVectors(defaultDir, barDir);
+          }
+          this.equipment.barbell.position.set(midHip.x, midHip.y + 0.04, midHip.z + 0.07);
+        } else {
+          // Deadlift, RDL, Bent Row, Bench Press: Barbell bridges both hands
+          const midHands = new THREE.Vector3().addVectors(handPosL, handPosR).multiplyScalar(0.5);
+          const barDir = new THREE.Vector3().subVectors(handPosR, handPosL).normalize();
+          if (barDir.lengthSq() > 0.01) {
+            this.equipment.barbell.quaternion.setFromUnitVectors(defaultDir, barDir);
+          }
+          this.equipment.barbell.position.copy(midHands);
+        }
       } else {
         this.equipment.barbell.visible = false;
       }
     }
 
-    // 3. Hex Dumbbells (Attached directly to left & right hands)
+    // ── ATTACHMENT 3: High-Fidelity Hex Dumbbells ──
     if (this.equipment.dumbbellL && this.equipment.dumbbellR) {
-      if (isDumbbell && !isGoblet && !isBarbell) {
-        this.equipment.dumbbellL.visible = true;
+      if (isDumbbell) {
+        const isSingleArm = fullStr.includes('single') || fullStr.includes('one_arm') || fullStr.includes('dumbbell_row');
+        this.equipment.dumbbellL.visible = !isSingleArm;
         this.equipment.dumbbellR.visible = true;
-        this.equipment.dumbbellL.position.copy(posWristL);
-        this.equipment.dumbbellR.position.copy(posWristR);
 
-        // Orient dumbbell along palm grip
-        this.equipment.dumbbellL.quaternion.copy(this.segments.handL.quaternion);
-        this.equipment.dumbbellR.quaternion.copy(this.segments.handR.quaternion);
+        this.equipment.dumbbellL.position.copy(handPosL);
+        this.equipment.dumbbellR.position.copy(handPosR);
+
+        // Compute natural grip orientation
+        const gripDirL = new THREE.Vector3(1, 0, 0);
+        const gripDirR = new THREE.Vector3(1, 0, 0);
+
+        if (fullStr.includes('hammer') || fullStr.includes('lateral') || fullStr.includes('raise') || fullStr.includes('scaption') || fullStr.includes('lunge') || fullStr.includes('split') || fullStr.includes('calf_raise')) {
+          // Sagittal grip (handles pointing forward-backward)
+          gripDirL.set(0, 0, 1);
+          gripDirR.set(0, 0, 1);
+        }
+
+        // Construct orthonormal basis ensuring handle is orthogonal to forearm
+        const upDirL = new THREE.Vector3().crossVectors(dirForearmL, gripDirL).normalize();
+        if (upDirL.lengthSq() < 0.01) upDirL.set(0, 1, 0);
+        const orthGripL = new THREE.Vector3().crossVectors(upDirL, dirForearmL).normalize();
+        const basisMatL = new THREE.Matrix4().makeBasis(orthGripL, dirForearmL, upDirL);
+        this.equipment.dumbbellL.quaternion.setFromRotationMatrix(basisMatL);
+
+        const upDirR = new THREE.Vector3().crossVectors(dirForearmR, gripDirR).normalize();
+        if (upDirR.lengthSq() < 0.01) upDirR.set(0, 1, 0);
+        const orthGripR = new THREE.Vector3().crossVectors(upDirR, dirForearmR).normalize();
+        const basisMatR = new THREE.Matrix4().makeBasis(orthGripR, dirForearmR, upDirR);
+        this.equipment.dumbbellR.quaternion.setFromRotationMatrix(basisMatR);
       } else {
         this.equipment.dumbbellL.visible = false;
         this.equipment.dumbbellR.visible = false;
+      }
+    }
+
+    // ── ATTACHMENT 4: Overhead Pull-Up Rig ──
+    if (this.equipment.pullUpBar) {
+      if (isPullUp) {
+        this.equipment.pullUpBar.visible = true;
+        const topHandY = Math.max(handPosL.y, handPosR.y);
+        this.equipment.pullUpBar.position.set(0, topHandY - 1.45, 0);
+      } else {
+        this.equipment.pullUpBar.visible = false;
+      }
+    }
+
+    // ── ATTACHMENT 5: Parallel Dip Bars ──
+    if (this.equipment.dipBars) {
+      if (isDip) {
+        this.equipment.dipBars.visible = true;
+        const handY = (handPosL.y + handPosR.y) * 0.5;
+        this.equipment.dipBars.position.set(0, handY - 0.22, 0);
+      } else {
+        this.equipment.dipBars.visible = false;
       }
     }
   }
