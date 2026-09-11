@@ -343,28 +343,9 @@ export class FlexAlignApp {
       }
     }
 
-    // Guidance Banner: Suppressed completely during 3D Simulation (only used for live physical camera)
+    // Dynamic Biomechanical Guidance Banner: Active for both live camera and 3D simulation
     const banner = document.getElementById('hudGuidanceBanner');
     if (banner) {
-      if (this.isSimulationRunning) {
-        // In 3D simulation, ONLY show a banner if user clicked "Test Fault" button
-        if (res.isFault && this.simFaultActive) {
-          banner.style.display = 'flex';
-          banner.className = 'hud-guidance-banner fault';
-          banner.classList.remove('hidden');
-          const badgeEl = document.getElementById('hudGuidanceBadge');
-          const iconEl = document.getElementById('hudGuidanceIcon');
-          const msgEl = document.getElementById('hudGuidanceText');
-          if (badgeEl) badgeEl.textContent = 'SIMULATED FAULT';
-          if (iconEl) iconEl.textContent = '⚠️';
-          if (msgEl) msgEl.textContent = res.guidanceText;
-        } else {
-          banner.style.display = 'none';
-          banner.classList.add('hidden');
-        }
-        return;
-      }
-
       const msgEl = document.getElementById('hudGuidanceText');
       const iconEl = document.getElementById('hudGuidanceIcon');
       const badgeEl = document.getElementById('hudGuidanceBadge');
@@ -378,18 +359,27 @@ export class FlexAlignApp {
         banner.style.display = 'flex';
         banner.className = 'hud-guidance-banner fault';
         banner.classList.remove('hidden');
-        if (badgeEl) badgeEl.textContent = 'FORM FAULT';
+        if (badgeEl) badgeEl.textContent = this.isSimulationRunning ? 'SIMULATED FAULT' : 'FORM FAULT';
         if (iconEl) iconEl.textContent = '⚠️';
         if (msgEl) msgEl.textContent = res.guidanceText;
       } else if (res.guidanceType === 'optimal') {
         banner.style.display = 'flex';
         banner.className = 'hud-guidance-banner optimal';
         banner.classList.remove('hidden');
-        if (badgeEl) badgeEl.textContent = 'OPTIMAL';
+        if (badgeEl) badgeEl.textContent = 'OPTIMAL ROM';
         if (iconEl) iconEl.textContent = '✨';
         if (msgEl) msgEl.textContent = res.guidanceText;
+      } else if (res.guidanceText) {
+        banner.style.display = 'flex';
+        banner.className = 'hud-guidance-banner info';
+        banner.classList.remove('hidden');
+        const exName = (this.evaluator && this.evaluator.currentExercise) 
+          ? this.evaluator.currentExercise.toUpperCase().replace(/^(GYM_|PT_)/, '').replace(/_/g, ' ') 
+          : 'TECHNIQUE';
+        if (badgeEl) badgeEl.textContent = this.isSimulationRunning ? `3D ${exName}` : `${exName} CUE`;
+        if (iconEl) iconEl.textContent = '💡';
+        if (msgEl) msgEl.textContent = res.guidanceText;
       } else {
-        // Generic coach tips are NOT displayed during active exercise motion
         if (!this.isShowingPostRepTip) {
           banner.style.display = 'none';
         }
@@ -1469,6 +1459,61 @@ export class FlexAlignApp {
     );
   }
 
+  async triggerAiFormAdvice() {
+    const exObj = getExerciseDefinition(this.evaluator.currentExercise);
+    const exName = (exObj && exObj.name) || this.evaluator.currentExercise;
+    const btn = document.getElementById('btnAiFormAdvice');
+    if (btn) btn.classList.add('loading');
+
+    this.showToast('🤖 AI Biomechanics Coach analyzing current motion...', '✨');
+
+    try {
+      const liveAngle = Math.round(this.evaluator.currentAngle);
+      const peakRom = Math.round(this.evaluator.peakRom);
+      const isFault = this.evaluator.currentRepHadFault || this.simFaultActive;
+      const faultDetails = isFault ? (exObj.faultMessage || 'Deviation from standard kinematic plane') : 'Clean cadence';
+      const repCount = this.evaluator.repCount;
+
+      let advice = await this.gemini.getLiveMovementAdjustments(
+        exName,
+        liveAngle,
+        peakRom,
+        isFault,
+        faultDetails,
+        repCount
+      );
+
+      if (!advice && this.evaluator._getSpecificMovementCue) {
+        advice = this.evaluator._getSpecificMovementCue(exObj, liveAngle, exObj.defaultTarget || 90, exObj.isFlexion !== false, 'entering');
+      }
+
+      if (advice) {
+        const banner = document.getElementById('hudGuidanceBanner');
+        if (banner) {
+          banner.style.display = 'flex';
+          banner.className = 'hud-guidance-banner info';
+          banner.classList.remove('hidden');
+          const badgeEl = document.getElementById('hudGuidanceBadge');
+          const iconEl = document.getElementById('hudGuidanceIcon');
+          const msgEl = document.getElementById('hudGuidanceText');
+          if (badgeEl) badgeEl.textContent = 'AI MOVEMENT ADVICE';
+          if (iconEl) iconEl.textContent = '🤖';
+          if (msgEl) msgEl.textContent = advice;
+        }
+
+        if (this.voice && typeof this.voice.speak === 'function') {
+          this.voice.speak(advice.replace(/[*_#`]/g, ''));
+        }
+
+        this.showToast(advice, '💡');
+      }
+    } catch (e) {
+      console.warn('AI form advice error:', e);
+    } finally {
+      if (btn) btn.classList.remove('loading');
+    }
+  }
+
   _init3DAvatar() {
     if (!this.avatarCanvas) return;
 
@@ -1734,6 +1779,7 @@ export class FlexAlignApp {
     bindClick('stopCamBtn', () => this.stopStreams());
     bindClick('simBtn', () => this.toggleSimulation());
     bindClick('btnSimFault', () => this.toggleSimFault());
+    bindClick('btnAiFormAdvice', () => this.triggerAiFormAdvice());
     bindClick('tabBtnWaveform', () => this.setDashboardTab('waveform'));
     bindClick('tabBtnStandards', () => this.setDashboardTab('standards'));
     bindClick('tabBtnHistory', () => this.setDashboardTab('history'));
@@ -1942,6 +1988,26 @@ export class FlexAlignApp {
     this.setAiLabTab('add');
 
     const presets = {
+      goblet_squat: {
+        prompt: 'Goblet Squat: Anterior anterior load variation with dumbbell or kettlebell cupped at sternum, elbows tracking inside knees at 85° depth, vertical spine.',
+        joint: 'KNEE',
+        mode: 'gym'
+      },
+      sumo_squat: {
+        prompt: 'Sumo Squat: Extra-wide stance (1.5x shoulders) with toes flared 45°, deep hip crease to 90°, knees tracking over toes.',
+        joint: 'KNEE',
+        mode: 'gym'
+      },
+      arnold_press: {
+        prompt: 'Arnold Press: Deltoid complex variation starting with palms facing chest, rotating 180° outward during ascent into full overhead lockout.',
+        joint: 'ELBOW',
+        mode: 'gym'
+      },
+      scaption: {
+        prompt: 'Scaption Full-Can: Elevation in 30° scapular plane with thumbs pointed up, safe subacromial space clearance up to 90° ROM.',
+        joint: 'SHOULDER',
+        mode: 'pt'
+      },
       rdl: {
         prompt: 'Romanian Deadlift (RDL): Biomechanical hip hinge targeting hamstrings & glutes. Deep hinge to 75° with soft knees and flat spine.',
         joint: 'HIP',

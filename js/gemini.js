@@ -797,4 +797,99 @@ Output ONLY raw JSON with:
     }
     return null;
   }
+
+  /**
+   * Generates instant, highly specific movement changes and technique adjustments using Gemini AI
+   */
+  async getLiveMovementAdjustments(exerciseName, currentAngle, peakRom, isFault, faultDetails, repCount) {
+    const prompt = `You are a real-time clinical biomechanics coach observing an athlete.
+Exercise: "${exerciseName}"
+Current Joint Angle: ${currentAngle}°
+Peak ROM this set: ${peakRom}°
+Fault State: ${isFault ? 'FAULT ACTIVE: ' + faultDetails : 'NO MAJOR FAULT'}
+Completed Repetitions: ${repCount}
+
+Provide EXACTLY ONE specific, high-yield biomechanical cue/change (maximum 1 sentence, actionable and encouraging, e.g. "Tuck your elbows 2 inches tighter against your ribcage to keep load centered over midfoot" or "Push your knees outward over your second toe to eliminate medial collapse"). Output plain text only without quotes.`;
+
+    const requestBody = {
+      system_instruction: { parts: [{ text: "You are an elite biomechanical sports coach. Provide exactly one direct, high-impact instruction in 1 sentence." }] },
+      contents: [{ role: 'user', parts: [{ text: prompt }] }]
+    };
+
+    for (const currentModel of this.candidateModels) {
+      try {
+        const endpoint = this.getEndpoint(currentModel);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) continue;
+        const data = await response.json();
+        const rawText = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || '';
+        const cleaned = rawText.replace(/[*_"`]/g, '').trim();
+        if (cleaned) return cleaned;
+      } catch (err) {
+        // Fallback to next model
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Generates a new exercise variation using Gemini AI on demand
+   */
+  async generateExerciseVariation(baseExerciseName, variationType) {
+    const prompt = `Create a distinct biomechanical variation of "${baseExerciseName}" focusing on "${variationType}" (e.g. Goblet, Sumo, Tempo Pause, Single-Leg / Unilateral, Banded Deficit, Incline).
+Provide unique target angles, instructions, and motionProfile.
+Output ONLY raw JSON format:
+{
+  "name": string,
+  "category": string,
+  "jointLabel": "KNEE" | "HIP" | "SHOULDER" | "ELBOW",
+  "jointTitle": string,
+  "defaultTarget": number,
+  "isFlexion": boolean,
+  "tip": string,
+  "motionProfile": {
+    "posture": "standing" | "supine" | "prone" | "quadruped" | "side_lying" | "seated" | "hinged" | "lunge" | "plank",
+    "movementType": string,
+    "primaryJoint": string,
+    "startAngle": number,
+    "targetAngle": number,
+    "tempoSpeed": number
+  }
+}`;
+
+    const requestBody = {
+      system_instruction: { parts: [{ text: "You are an expert exercise kinesiologist. Output valid JSON only." }] },
+      contents: [{ role: 'user', parts: [{ text: prompt }] }]
+    };
+
+    for (const currentModel of this.candidateModels) {
+      try {
+        const endpoint = this.getEndpoint(currentModel);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+        if (!response.ok) continue;
+        const data = await response.json();
+        const rawText = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || '';
+        const cleaned = rawText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+        return JSON.parse(cleaned);
+      } catch (err) {
+        console.warn(`[GeminiCoach] Variation synthesis failed on ${currentModel}:`, err);
+      }
+    }
+    return null;
+  }
 }
+

@@ -34,7 +34,7 @@ export const GYM_EXERCISES = {
     tip: '⚡ <strong>Goblet Squat:</strong> Hold kettlebell or dumbbell close to sternum. Spread the floor with feet and keep elbows inside knees.',
     defaultTarget: 85,
     isFlexion: true,
-    motionProfile: { posture: 'standing', movementType: 'squat', primaryJoint: 'KNEE', startAngle: 175, targetAngle: 85, tempoSpeed: 1.4 }
+    motionProfile: { posture: 'standing', movementType: 'goblet_squat', primaryJoint: 'KNEE', startAngle: 175, targetAngle: 85, tempoSpeed: 1.3 }
   },
   gym_sumo_squat: {
     id: 'gym_sumo_squat',
@@ -68,7 +68,7 @@ export const GYM_EXERCISES = {
     tip: '⚡ <strong>RDL Hinge:</strong> Maintain soft knee bend and drive hips straight back. Bar skims thighs with neutral cervical spine.',
     faultMessage: '⚠️ Form Fault: Spine Rounding or Excessive Knee Bend! Push Hips Backward',
     faultCriteria: { torsoLeanThreshold: 45, kneeBendThreshold: 140 },
-    motionProfile: { posture: 'hinged', movementType: 'hinge_deadlift', primaryJoint: 'HIP', startAngle: 175, targetAngle: 75, tempoSpeed: 1.3 }
+    motionProfile: { posture: 'hinged', movementType: 'rdl', primaryJoint: 'HIP', startAngle: 175, targetAngle: 75, tempoSpeed: 1.3 }
   },
   gym_deadlift: {
     id: 'gym_deadlift',
@@ -83,7 +83,7 @@ export const GYM_EXERCISES = {
     isFlexion: true,
     repFooter: 'Floor Setup ➔ Leg Drive ➔ Glute Lockout',
     tip: '⚡ <strong>Deadlift:</strong> Brace core, pull slack out of bar. Drive through mid-foot and lock out hips without hyperextending lower back.',
-    motionProfile: { posture: 'hinged', movementType: 'hinge_deadlift', primaryJoint: 'HIP', startAngle: 175, targetAngle: 70, tempoSpeed: 1.3 }
+    motionProfile: { posture: 'hinged', movementType: 'deadlift', primaryJoint: 'HIP', startAngle: 175, targetAngle: 70, tempoSpeed: 1.3 }
   },
   gym_good_morning: {
     id: 'gym_good_morning',
@@ -130,7 +130,7 @@ export const GYM_EXERCISES = {
     isFlexion: true,
     repFooter: 'Upright Setup ➔ 90° Knee Drop ➔ Drive Lead Foot',
     tip: '⚡ <strong>Split Squat:</strong> Lower rear knee toward floor while keeping lead shin vertical. Maintain square pelvis and upright chest.',
-    motionProfile: { posture: 'lunge', movementType: 'lunge', primaryJoint: 'KNEE', startAngle: 170, targetAngle: 85, tempoSpeed: 1.4 }
+    motionProfile: { posture: 'lunge', movementType: 'split_squat', primaryJoint: 'KNEE', startAngle: 170, targetAngle: 85, tempoSpeed: 1.4 }
   },
   gym_lunge: {
     id: 'gym_lunge',
@@ -145,7 +145,7 @@ export const GYM_EXERCISES = {
     isFlexion: true,
     repFooter: 'Step Forward ➔ Decelerate to 90° ➔ Drive Forward',
     tip: '🦵 <strong>Walking Lunges:</strong> Step forward and drop hips straight down. Keep front knee centered over foot without caving inward.',
-    motionProfile: { posture: 'lunge', movementType: 'lunge', primaryJoint: 'KNEE', startAngle: 170, targetAngle: 88, tempoSpeed: 1.4 }
+    motionProfile: { posture: 'lunge', movementType: 'forward_lunge', primaryJoint: 'KNEE', startAngle: 170, targetAngle: 88, tempoSpeed: 1.4 }
   },
   gym_reverse_lunge: {
     id: 'gym_reverse_lunge',

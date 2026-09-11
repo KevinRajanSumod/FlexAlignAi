@@ -939,7 +939,7 @@ export class ExerciseEvaluator {
     // 9. DYNAMIC AI-GENERATED / CUSTOM EXERCISES
     // ────────────────────────────────────────────────────────────────
     const customDef = getExerciseDefinition(this.currentExercise);
-    if (customDef && customDef.isCustom) {
+    if (customDef) {
       let joint = (customDef.jointLabel || 'KNEE').toUpperCase();
       if (joint.includes('GLENOHUMERAL') || joint.includes('DELTOID') || joint.includes('SHOULDER')) joint = 'SHOULDER';
       else if (joint.includes('BICEP') || joint.includes('TRICEP') || joint.includes('ELBOW')) joint = 'ELBOW';
@@ -966,7 +966,9 @@ export class ExerciseEvaluator {
           calculateTorsoLean(landmarks[11], landmarks[23]),
           calculateTorsoLean(landmarks[12], landmarks[24])
         );
-        const maxLean = (customDef.faultCriteria && customDef.faultCriteria.torsoLeanThreshold) || 45;
+        const isHinge = (mp.movementType === 'rdl' || mp.movementType === 'deadlift' || mp.movementType === 'good_morning' || mp.movementType === 'row' || (customDef.name && customDef.name.toLowerCase().includes('hinge')));
+        const defaultLean = isHinge ? 82 : 45;
+        const maxLean = (customDef.faultCriteria && customDef.faultCriteria.torsoLeanThreshold) || defaultLean;
         if (torsoLean > maxLean) {
           isFault = true;
           faultLimb = 'trunk';
@@ -1088,13 +1090,22 @@ export class ExerciseEvaluator {
 
       if (isFault) {
         guidanceType = 'fault';
+        guidanceMessage = faultMessage;
         this.currentRepHadFault = true;
         if (this._canFireFaultAudio()) this.audio.playFaultAlert();
       } else if (isFlexion ? (mainAngle <= targetAngle + 10) : (mainAngle >= targetAngle - 10)) {
-        guidanceMessage = `Target Achieved (${Math.round(mainAngle)}°)! Smooth Return`;
+        if (this.exerciseState !== 'inflection') {
+          this.exerciseState = 'inflection';
+          this.inflectionEnteredAt = now;
+        }
+        guidanceMessage = this._getSpecificMovementCue(customDef, mainAngle, targetAngle, isFlexion, 'inflection');
         guidanceType = 'optimal';
+      } else if (isFlexion ? (mainAngle < startAngle - 15) : (mainAngle > startAngle + 15)) {
+        if (this.exerciseState === 'idle') this.exerciseState = 'entering';
+        guidanceMessage = this._getSpecificMovementCue(customDef, mainAngle, targetAngle, isFlexion, 'entering');
+        guidanceType = 'info';
       } else {
-        guidanceMessage = `${customDef.name}: Smooth Cadence`;
+        guidanceMessage = this._getSpecificMovementCue(customDef, mainAngle, targetAngle, isFlexion, 'setup');
         guidanceType = 'info';
       }
 
@@ -1193,7 +1204,7 @@ export class ExerciseEvaluator {
       peakRom: this.peakRom,
       isFault: debouncedFault,
       faultLimb: debouncedFault ? faultLimb : null,
-      guidanceText: debouncedFault ? faultMessage : guidanceMessage,
+      guidanceText: debouncedFault ? (faultMessage || guidanceMessage) : (guidanceMessage || faultMessage || (customDef ? this._getSpecificMovementCue(customDef, mainAngle, 90, true, 'entering') : 'Ready')),
       guidanceType: debouncedFault ? 'fault' : guidanceType,
       repCount: this.repCount,
       faultCount: this.faultCount,
@@ -1215,5 +1226,202 @@ export class ExerciseEvaluator {
     };
     this.repHistory.unshift(record);
     this.latestRecord = record;
+  }
+
+  /**
+   * Generates specific biomechanical movement cues and form changes based on active exercise and motion phase
+   */
+  _getSpecificMovementCue(def, mainAngle, targetAngle, isFlexion, phase) {
+    const name = (def && def.name) || '';
+    const id = (def && def.id) || '';
+    const mType = (def && def.motionProfile && def.motionProfile.movementType) || '';
+    const lower = (name + ' ' + id + ' ' + mType).toLowerCase();
+
+    // 1. Goblet Squat
+    if (lower.includes('goblet')) {
+      if (phase === 'inflection' || (isFlexion ? mainAngle <= targetAngle + 8 : mainAngle >= targetAngle - 8)) {
+        return '✨ Parallel Crease Achieved! Drive up through midfoot';
+      } else if (phase === 'entering' || (isFlexion ? mainAngle < 145 : mainAngle > 100)) {
+        return '💡 Descent: Keep load glued to sternum, track elbows inside knees';
+      } else {
+        return '⚡ Goblet Setup: Rack weight tight to sternum, elbows tucked';
+      }
+    }
+    // 2. Sumo Squat
+    if (lower.includes('sumo')) {
+      if (phase === 'inflection' || (isFlexion ? mainAngle <= targetAngle + 8 : mainAngle >= targetAngle - 8)) {
+        return '✨ Deep Sumo Crease! Squeeze glutes and adductors to rise';
+      } else if (phase === 'entering' || (isFlexion ? mainAngle < 145 : mainAngle > 100)) {
+        return '💡 Wide Stance: Drive knees wide over 45° toes, keep pelvis under ribs';
+      } else {
+        return '⚡ Sumo Stance: Feet 1.5x shoulders, toes flared 45° outward';
+      }
+    }
+    // 3. Romanian Deadlift (RDL)
+    if (lower.includes('rdl') || lower.includes('romanian')) {
+      if (phase === 'inflection' || (isFlexion ? mainAngle <= targetAngle + 10 : mainAngle >= targetAngle - 10)) {
+        return '✨ Hamstrings Loaded! Squeeze glutes and drive hips forward';
+      } else if (phase === 'entering' || (isFlexion ? mainAngle < 155 : mainAngle > 100)) {
+        return '💡 Hip Hinge: Push hips back like closing a door — soft knees, bar skims thighs';
+      } else {
+        return '⚡ RDL Setup: Soft knee unlock, lats packed, neutral spine';
+      }
+    }
+    // 4. Conventional Deadlift
+    if (lower.includes('deadlift')) {
+      if (phase === 'inflection' || (isFlexion ? mainAngle <= targetAngle + 10 : mainAngle >= targetAngle - 10)) {
+        return '✨ Powerful Floor Setup! Leg drive through midfoot';
+      } else if (phase === 'entering' || (isFlexion ? mainAngle < 145 : mainAngle > 100)) {
+        return '💡 Pull Phase: Push floor away, chest and hips rise at same rate';
+      } else {
+        return '⚡ Deadlift Lockout: Squeeze glutes tall without hyperextending back';
+      }
+    }
+    // 5. Bulgarian Split Squat
+    if (lower.includes('split squat')) {
+      if (phase === 'inflection' || (isFlexion ? mainAngle <= targetAngle + 8 : mainAngle >= targetAngle - 8)) {
+        return '✨ Single-Leg Depth! Drive 80% through front heel';
+      } else if (phase === 'entering' || (isFlexion ? mainAngle < 145 : mainAngle > 100)) {
+        return '💡 Elevator Drop: Sink rear knee straight down, front shin vertical';
+      } else {
+        return '⚡ Split Squat: Square hips, rear foot elevated, chest tall';
+      }
+    }
+    // 6. Walking / Forward Lunge
+    if (lower.includes('walking lunge') || (lower.includes('lunge') && !lower.includes('reverse'))) {
+      if (phase === 'inflection' || (isFlexion ? mainAngle <= targetAngle + 8 : mainAngle >= targetAngle - 8)) {
+        return '✨ 90° Lunge Depth! Drive off lead foot to stand';
+      } else if (phase === 'entering' || (isFlexion ? mainAngle < 145 : mainAngle > 100)) {
+        return '💡 Forward Step: Decelerate through front heel, keep front knee centered';
+      } else {
+        return '⚡ Lunge Setup: Stand tall, prepare for controlled forward stride';
+      }
+    }
+    // 7. Reverse Lunge
+    if (lower.includes('reverse lunge')) {
+      if (phase === 'inflection' || (isFlexion ? mainAngle <= targetAngle + 8 : mainAngle >= targetAngle - 8)) {
+        return '✨ Reverse Depth! Drive through front heel to return';
+      } else if (phase === 'entering' || (isFlexion ? mainAngle < 145 : mainAngle > 100)) {
+        return '💡 Step Back: Soft ball-of-foot contact, front shin stays vertical';
+      } else {
+        return '⚡ Reverse Lunge: Feet hip-width, prepare to step backward';
+      }
+    }
+    // 8. Arnold Press
+    if (lower.includes('arnold')) {
+      if (phase === 'inflection' || (!isFlexion ? mainAngle >= targetAngle - 10 : mainAngle <= targetAngle + 10)) {
+        return '✨ Overhead Lockout! Palms facing forward, biceps by ears';
+      } else if (phase === 'entering' || (!isFlexion ? mainAngle > 100 : mainAngle < 145)) {
+        return '💡 Arnold Rotation: Rotate wrists 180° outward as elbows flare into press';
+      } else {
+        return '⚡ Arnold Setup: Dumbbells at chin, palms facing face';
+      }
+    }
+    // 9. Hammer Curl
+    if (lower.includes('hammer')) {
+      if (phase === 'inflection' || (isFlexion ? mainAngle <= targetAngle + 10 : mainAngle >= targetAngle - 10)) {
+        return '✨ Peak Contraction! Thumbs pointed straight up';
+      } else if (phase === 'entering' || (isFlexion ? mainAngle < 145 : mainAngle > 90)) {
+        return '💡 Neutral Tracking: Keep elbows pinned to ribcage, 2-sec eccentric';
+      } else {
+        return '⚡ Hammer Setup: Palms facing each other in handshake grip';
+      }
+    }
+    // 10. Diamond Push-Up
+    if (lower.includes('diamond')) {
+      if (phase === 'inflection' || (isFlexion ? mainAngle <= targetAngle + 8 : mainAngle >= targetAngle - 8)) {
+        return '✨ Chest to Diamond! Drive through palms for tricep lockout';
+      } else if (phase === 'entering' || (isFlexion ? mainAngle < 140 : mainAngle > 100)) {
+        return '💡 Diamond Descent: Thumbs & index touching, elbows skim ribs';
+      } else {
+        return '⚡ Diamond Plank: Rigid plank line, hands centered under sternum';
+      }
+    }
+    // 11. Floor Press
+    if (lower.includes('floor press')) {
+      if (phase === 'inflection' || (isFlexion ? mainAngle <= targetAngle + 8 : mainAngle >= targetAngle - 8)) {
+        return '✨ Triceps Paused on Floor! Explode upward to lockout';
+      } else if (phase === 'entering' || (isFlexion ? mainAngle < 145 : mainAngle > 100)) {
+        return '💡 Floor Lowering: Rest upper arms lightly at 90°, avoid bounce';
+      } else {
+        return '⚡ Floor Setup: Knees bent, feet planted, arms extended';
+      }
+    }
+    // 12. Scaption / Full Can
+    if (lower.includes('scaption') || lower.includes('full can')) {
+      if (phase === 'inflection' || (!isFlexion ? mainAngle >= targetAngle - 8 : mainAngle <= targetAngle + 8)) {
+        return '✨ 90° Scapular Height! Hold peak contraction, neck relaxed';
+      } else if (phase === 'entering' || (!isFlexion ? mainAngle > 40 : mainAngle < 80)) {
+        return '💡 Scaption Plane: Thumbs up, elevate 30° anterior to body — avoid shrugging';
+      } else {
+        return '⚡ Scaption Setup: Arms at sides, thumbs pointing upward';
+      }
+    }
+    // 13. Wall Angels
+    if (lower.includes('wall angel')) {
+      if (phase === 'inflection' || (!isFlexion ? mainAngle >= targetAngle - 10 : mainAngle <= targetAngle + 10)) {
+        return '✨ Overhead Y Position! Keep wrists glued to wall';
+      } else if (phase === 'entering' || (!isFlexion ? mainAngle > 95 : mainAngle < 140)) {
+        return '💡 Wall Slide: Slide elbows from W to Y without arching lower back';
+      } else {
+        return '⚡ Wall Setup: Back flat to wall, elbows and wrists in contact';
+      }
+    }
+    // 14. Clamshell
+    if (lower.includes('clamshell')) {
+      if (phase === 'inflection' || (mainAngle >= targetAngle - 5)) {
+        return '✨ Peak Hip Abduction! Squeeze outer glute, keep pelvis stacked';
+      } else {
+        return '💡 Clamshell: Rotate top knee upward without rocking pelvis backward';
+      }
+    }
+    // 15. Pelvic Tilt
+    if (lower.includes('pelvic tilt')) {
+      return '💡 Pelvic Tilt: Contract lower abdominals to press lumbar spine flat into mat';
+    }
+    // 16. Straight Leg Raise (SLR)
+    if (lower.includes('slr') || lower.includes('straight leg')) {
+      if (phase === 'inflection') {
+        return '✨ 45° Elevation! Knee locked straight, quad contracted';
+      } else {
+        return '💡 Straight Leg Raise: Lock working knee firmly, raise heel to opposite knee';
+      }
+    }
+    // 17. Codman's Pendulum
+    if (lower.includes('pendulum')) {
+      return '💡 Pendulum: Let arm dangle passively, initiate gentle circles from hips & torso';
+    }
+    // 18. Terminal Knee Extension (TKE)
+    if (lower.includes('tke') || lower.includes('terminal knee')) {
+      if (phase === 'inflection') {
+        return '✨ Terminal Lockout! Hold quad contraction 2 seconds against band';
+      } else {
+        return '💡 TKE: Drive working knee backward against band resistance to full lockout';
+      }
+    }
+    // 19. Mini Squat
+    if (lower.includes('mini squat')) {
+      if (phase === 'inflection') {
+        return '✨ Functional 35° Depth! Press evenly through both feet';
+      } else {
+        return '💡 Mini Squat: Shallow controlled dip, keep knees aligned over toes';
+      }
+    }
+    // 20. Barbell Good Morning
+    if (lower.includes('good morning')) {
+      if (phase === 'inflection') {
+        return '✨ Horizontal Torso Hinge! Drive hips forward to stand';
+      } else {
+        return '💡 Good Morning: Hinge hips back with neutral spine, keep lats packed';
+      }
+    }
+    // Default fallback
+    if (phase === 'inflection') {
+      return `✨ Target Depth Achieved (${Math.round(mainAngle)}°)! Smooth Return`;
+    } else if (phase === 'entering') {
+      return `💡 In Motion: Control cadence toward ${targetAngle}°`;
+    } else {
+      return `⚡ ${name}: Setup & Prepare for Movement`;
+    }
   }
 }

@@ -973,24 +973,56 @@ export class MotionSimulator {
       lms[16] = { x: 0.60, y: shoulderY + 0.20 * cycle, z: torsoLeanZ - 0.02, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN 7B: ROMANIAN DEADLIFT / CONVENTIONAL DEADLIFT
+    // PATTERN 7B: ROMANIAN DEADLIFT (RDL - SOFT KNEES, DEEP HIP HINGE BACK)
     // ─────────────────────────────────────────────────────────────
-    } else if (mType === 'hinge_deadlift' || mType === 'hinge' || joint === 'HIP') {
-      const hipDrop = (mp.hipDropY !== undefined ? mp.hipDropY : 0.08) * cycle;
-      const hipZ = isFault ? (-0.12 * cycle) : (mp.hipHingeZ !== undefined ? mp.hipHingeZ * cycle : -0.24 * cycle);
-      const torsoLeanZ = isFault ? (0.42 * cycle) : (0.24 * cycle);
+    } else if (mType === 'rdl' || name.includes('rdl') || name.includes('romanian')) {
+      const hipHingeBackZ = isFault ? (-0.12 * cycle) : (-0.30 * cycle);
+      const torsoHingeZ = isFault ? (0.44 * cycle) : (0.28 * cycle);
+      const hipDrop = 0.05 * cycle;
+      lms[23] = { x: 0.44, y: hipY + hipDrop, z: hipHingeBackZ, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: hipY + hipDrop, z: hipHingeBackZ, visibility: 0.98 };
+      lms[11] = { x: 0.43, y: shoulderY + 0.16 * cycle, z: torsoHingeZ, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY + 0.16 * cycle, z: torsoHingeZ, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.16 + 0.16 * cycle, z: torsoHingeZ, visibility: 0.98 };
+      // Soft knees: remain fixed in slight 15-20° flexion (NEVER sink into a squat!)
+      const kneeSoftZ = 0.03 * cycle;
+      lms[25] = { x: 0.43, y: kneeY, z: kneeSoftZ, visibility: 0.98 };
+      lms[26] = { x: 0.57, y: kneeY, z: kneeSoftZ, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: ankleY, z: 0, visibility: 0.98 };
+      lms[28] = { x: 0.57, y: ankleY, z: 0, visibility: 0.98 };
+      // Bar stays glued to thighs, traveling down to just below knees
+      const barY = 0.58 + 0.14 * cycle;
+      lms[13] = { x: 0.42, y: barY - 0.18, z: torsoHingeZ * 0.7, visibility: 0.98 };
+      lms[14] = { x: 0.58, y: barY - 0.18, z: torsoHingeZ * 0.7, visibility: 0.98 };
+      lms[15] = { x: 0.42, y: barY, z: torsoHingeZ * 0.8, visibility: 0.98 };
+      lms[16] = { x: 0.58, y: barY, z: torsoHingeZ * 0.8, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 7C: CONVENTIONAL DEADLIFT (FLOOR PULL & HIP EXTENSION LOCKOUT)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'deadlift' || mType === 'hinge_deadlift' || mType === 'hinge' || joint === 'HIP') {
+      const drop = cycle * 0.18;
+      // Deadlift has dynamic knee flexion (~105° setup from floor)
+      const kneeDrop = drop * 0.45;
+      const hipDrop = drop * 0.80;
+      const hipZ = isFault ? (-0.10 * cycle) : (-0.18 * cycle);
+      const torsoLeanZ = isFault ? (0.38 * cycle) : (0.20 * cycle);
       lms[23] = { x: 0.44, y: hipY + hipDrop, z: hipZ, visibility: 0.98 };
       lms[24] = { x: 0.56, y: hipY + hipDrop, z: hipZ, visibility: 0.98 };
-      lms[11] = { x: 0.43, y: shoulderY + 0.18 * cycle, z: torsoLeanZ, visibility: 0.98 };
-      lms[12] = { x: 0.57, y: shoulderY + 0.18 * cycle, z: torsoLeanZ, visibility: 0.98 };
-      lms[0]  = { x: 0.50, y: 0.16 + 0.18 * cycle, z: torsoLeanZ, visibility: 0.98 };
-      const kneeZ = isFault ? (0.16 * cycle) : (0.04 * cycle);
-      lms[25] = { x: 0.43, y: kneeY - 0.02 * cycle, z: kneeZ, visibility: 0.98 };
-      lms[26] = { x: 0.57, y: kneeY - 0.02 * cycle, z: kneeZ, visibility: 0.98 };
-      lms[13] = { x: 0.42, y: 0.48 + 0.16 * cycle, z: torsoLeanZ * 0.7, visibility: 0.98 };
-      lms[14] = { x: 0.58, y: 0.48 + 0.16 * cycle, z: torsoLeanZ * 0.7, visibility: 0.98 };
-      lms[15] = { x: 0.42, y: 0.68 + 0.15 * cycle, z: torsoLeanZ * 0.8, visibility: 0.98 };
-      lms[16] = { x: 0.58, y: 0.68 + 0.15 * cycle, z: torsoLeanZ * 0.8, visibility: 0.98 };
+      lms[11] = { x: 0.43, y: shoulderY + drop * 0.75, z: torsoLeanZ, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY + drop * 0.75, z: torsoLeanZ, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.16 + drop * 0.75, z: torsoLeanZ, visibility: 0.98 };
+      // Knees translate forward over mid-foot as hips sink
+      lms[25] = { x: 0.43, y: kneeY + kneeDrop, z: 0.08 * cycle, visibility: 0.98 };
+      lms[26] = { x: 0.57, y: kneeY + kneeDrop, z: 0.08 * cycle, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: ankleY, z: 0, visibility: 0.98 };
+      lms[28] = { x: 0.57, y: ankleY, z: 0, visibility: 0.98 };
+      // Hands hold bar close to shins down to floor
+      const barY = 0.60 + drop * 0.85;
+      lms[13] = { x: 0.42, y: barY - 0.20, z: torsoLeanZ * 0.6, visibility: 0.98 };
+      lms[14] = { x: 0.58, y: barY - 0.20, z: torsoLeanZ * 0.6, visibility: 0.98 };
+      lms[15] = { x: 0.42, y: barY, z: torsoLeanZ * 0.7, visibility: 0.98 };
+      lms[16] = { x: 0.58, y: barY, z: torsoLeanZ * 0.7, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
     // PATTERN 8A: REVERSE LUNGE
@@ -1009,18 +1041,42 @@ export class MotionSimulator {
       lms[28] = { x: 0.57, y: ankleY, z: -0.32 * cycle, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN 8B: FORWARD LUNGE / BULGARIAN SPLIT SQUAT
+    // PATTERN 8B: BULGARIAN SPLIT SQUAT (STATIONARY ELEVATOR DROP)
     // ─────────────────────────────────────────────────────────────
-    } else if (mType === 'lunge' || (customDef.name && (customDef.name.toLowerCase().includes('lunge') || customDef.name.toLowerCase().includes('split')))) {
+    } else if (mType === 'split_squat' || name.includes('split squat')) {
+      const drop = cycle * 0.22;
+      const torsoLeanZ = isFault ? (0.24 * cycle) : (0.02 * cycle);
+      lms[23] = { x: 0.44, y: hipY + drop, z: -0.04, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: hipY + drop, z: -0.04, visibility: 0.98 };
+      lms[11] = { x: 0.43, y: shoulderY + drop, z: torsoLeanZ, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY + drop, z: torsoLeanZ, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.16 + drop, z: torsoLeanZ, visibility: 0.98 };
+      // Front leg stationary: knee drops to 90°
+      lms[25] = { x: 0.43, y: kneeY + drop * 0.4, z: 0.08, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: ankleY, z: 0.06, visibility: 0.98 };
+      // Rear leg elevated behind: knee drops toward floor
+      lms[26] = { x: 0.57, y: kneeY + drop * 0.9, z: -0.22, visibility: 0.98 };
+      lms[28] = { x: 0.57, y: ankleY - 0.08, z: -0.28, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 8C: WALKING / FORWARD LUNGE (DYNAMIC FORWARD STEPPING)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'forward_lunge' || mType === 'lunge' || (customDef.name && (customDef.name.toLowerCase().includes('lunge') || customDef.name.toLowerCase().includes('split')))) {
       const squatDrop = cycle * 0.22;
-      const torsoLeanZ = isFault ? (0.28 * cycle) : (0.03 * cycle);
+      const stepForwardZ = 0.20 * cycle;
+      const torsoLeanZ = isFault ? (0.28 * cycle) : (0.04 * cycle);
       const valgusX = isFault ? (0.05 * cycle) : 0;
-      lms[23] = { x: 0.44, y: hipY + squatDrop, z: -0.06 * cycle, visibility: 0.98 };
-      lms[24] = { x: 0.56, y: hipY + squatDrop, z: -0.06 * cycle, visibility: 0.98 };
-      lms[11] = { x: 0.43, y: shoulderY + squatDrop, z: torsoLeanZ, visibility: 0.98 };
-      lms[12] = { x: 0.57, y: shoulderY + squatDrop, z: torsoLeanZ, visibility: 0.98 };
-      lms[25] = { x: 0.43 + valgusX, y: kneeY + squatDrop * 0.45, z: 0.14 * cycle, visibility: 0.98 };
-      lms[26] = { x: 0.57, y: kneeY + squatDrop * 0.85, z: -0.22 * cycle, visibility: 0.98 };
+      lms[23] = { x: 0.44, y: hipY + squatDrop, z: stepForwardZ * 0.5, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: hipY + squatDrop, z: stepForwardZ * 0.5, visibility: 0.98 };
+      lms[11] = { x: 0.43, y: shoulderY + squatDrop, z: stepForwardZ * 0.5 + torsoLeanZ, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: shoulderY + squatDrop, z: stepForwardZ * 0.5 + torsoLeanZ, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.16 + squatDrop, z: stepForwardZ * 0.5 + torsoLeanZ, visibility: 0.98 };
+      // Front stepping leg
+      lms[25] = { x: 0.43 + valgusX, y: kneeY + squatDrop * 0.45, z: stepForwardZ + 0.06, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: ankleY, z: stepForwardZ, visibility: 0.98 };
+      // Rear trailing leg
+      lms[26] = { x: 0.57, y: kneeY + squatDrop * 0.85, z: -0.16 * (1 - cycle), visibility: 0.98 };
+      lms[28] = { x: 0.57, y: ankleY, z: -0.10, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
     // PATTERN 9: STANDING CALF RAISE
@@ -1088,6 +1144,35 @@ export class MotionSimulator {
       const shinRelZ = Math.cos(Math.PI - extRad) * shinLen;
       lms[27] = { x: 0.44, y: seatedKneeY + shinRelY, z: 0.06 + shinRelZ, visibility: 0.98 };
       lms[28] = { x: 0.56, y: seatedKneeY + shinRelY, z: 0.06 + shinRelZ, visibility: 0.98 };
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN 11A0: GOBLET SQUAT (ANTERIOR CHEST LOAD & TUCKED ELBOWS)
+    // ─────────────────────────────────────────────────────────────
+    } else if (mType === 'goblet_squat' || name.includes('goblet')) {
+      const squatDrop = cycle * (isFault ? 0.12 : 0.22);
+      // Extremely upright spine (anterior weight forces thoracic extension)
+      const trunkLeanZ = isFault ? (0.24 * cycle) : (0.03 * cycle);
+      lms[23] = { x: 0.44, y: hipY + squatDrop, z: -0.04 * cycle, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: hipY + squatDrop, z: -0.04 * cycle, visibility: 0.98 };
+      const torsoY = shoulderY + squatDrop * 0.8;
+      lms[11] = { x: 0.43, y: torsoY, z: trunkLeanZ, visibility: 0.98 };
+      lms[12] = { x: 0.57, y: torsoY, z: trunkLeanZ, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.16 + squatDrop * 0.8, z: trunkLeanZ, visibility: 0.98 };
+      // Knees track outward over toes
+      const kneeZ = 0.09 * cycle;
+      const kneeYDrop = kneeY + squatDrop * 0.35;
+      const valgusShift = isFault ? (cycle * 0.07) : -0.015 * cycle;
+      lms[25] = { x: 0.43 + valgusShift, y: kneeYDrop, z: kneeZ, visibility: 0.98 };
+      lms[26] = { x: 0.57 - valgusShift, y: kneeYDrop, z: kneeZ, visibility: 0.98 };
+      lms[27] = { x: 0.42, y: ankleY, z: 0, visibility: 0.98 };
+      lms[28] = { x: 0.58, y: ankleY, z: 0, visibility: 0.98 };
+      // GOBLET ARMS: Hands cupped tightly together at upper sternum/collarbones
+      // Elbows tucked down vertically, tracking inside knees
+      const elbowTuck = isFault ? (0.05 * cycle) : 0;
+      lms[13] = { x: 0.45 - elbowTuck, y: torsoY + 0.14, z: 0.10, visibility: 0.98 };
+      lms[14] = { x: 0.55 + elbowTuck, y: torsoY + 0.14, z: 0.10, visibility: 0.98 };
+      lms[15] = { x: 0.48, y: torsoY + 0.06, z: 0.15, visibility: 0.98 };
+      lms[16] = { x: 0.52, y: torsoY + 0.06, z: 0.15, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
     // PATTERN 11A: SUMO SQUAT (WIDE STANCE & OUTWARD KNEE TRACKING)
@@ -1163,8 +1248,16 @@ export class MotionSimulator {
       return { posture: 'supine', movementType: 'ankle_pump', primaryJoint: 'KNEE', startAngle: 155, targetAngle: 180, tempoSpeed: 1.2 };
     } else if (name.includes('tke') || id.includes('tke') || name.includes('terminal knee')) {
       return { posture: 'standing', movementType: 'tke', primaryJoint: 'KNEE', startAngle: 145, targetAngle: 178, tempoSpeed: 1.3 };
-    } else if (name.includes('mini squat') || id.includes('mini_squat')) {
-      return { posture: 'standing', movementType: 'mini_squat', primaryJoint: 'KNEE', startAngle: 175, targetAngle: 145, tempoSpeed: 1.3 };
+    } else if (name.includes('goblet') || id.includes('goblet')) {
+      return { posture: 'standing', movementType: 'goblet_squat', primaryJoint: 'KNEE', startAngle: 175, targetAngle: 85, tempoSpeed: 1.3 };
+    } else if (name.includes('rdl') || name.includes('romanian')) {
+      return { posture: 'hinged', movementType: 'rdl', primaryJoint: 'HIP', startAngle: 175, targetAngle: 75, tempoSpeed: 1.3 };
+    } else if (name.includes('deadlift') && !name.includes('rdl')) {
+      return { posture: 'hinged', movementType: 'deadlift', primaryJoint: 'HIP', startAngle: 175, targetAngle: 70, tempoSpeed: 1.3 };
+    } else if (name.includes('split squat') || id.includes('split_squat')) {
+      return { posture: 'lunge', movementType: 'split_squat', primaryJoint: 'KNEE', startAngle: 170, targetAngle: 85, tempoSpeed: 1.4 };
+    } else if (name.includes('walking lunge') || (name.includes('lunge') && !name.includes('reverse') && !name.includes('split'))) {
+      return { posture: 'lunge', movementType: 'forward_lunge', primaryJoint: 'KNEE', startAngle: 170, targetAngle: 88, tempoSpeed: 1.4 };
     } else if (name.includes('sumo') || id.includes('sumo')) {
       return { posture: 'standing', movementType: 'sumo_squat', primaryJoint: 'KNEE', startAngle: 175, targetAngle: 90, tempoSpeed: 1.4 };
     } else if (name.includes('good morning') || id.includes('good_morning')) {

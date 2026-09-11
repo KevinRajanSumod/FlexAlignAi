@@ -315,6 +315,10 @@
               title="Simulate common form fault (or press 'F')">
               <span class="btn-icon">⚠️</span> Test Fault
             </button>
+            <button id="btnAiFormAdvice" class="dock-btn ai-advice-btn" onclick="window.app.triggerAiFormAdvice()"
+              title="Instant AI Movement Coach: Get real-time biomechanical cues and form adjustments">
+              <span class="btn-icon">💡</span> AI Form Cue
+            </button>
             <button class="dock-btn secondary" onclick="window.app.resetSession()"
               title="Reset repetition counter & analytics">
               <span class="btn-icon">↻</span> Reset
@@ -353,9 +357,13 @@
 
           <!-- Quick AI Presets Chips -->
           <div class="ai-preset-chips-wrap">
-            <span class="ai-preset-label">QUICK PRESETS:</span>
+            <span class="ai-preset-label">QUICK PRESETS & VARIETIES:</span>
+            <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('goblet_squat')">🏋️ Goblet Squat</button>
+            <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('sumo_squat')">🦵 Sumo Squat</button>
             <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('rdl')">🏋️ Romanian Deadlift</button>
             <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('split_squat')">🦵 Bulgarian Split Squat</button>
+            <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('arnold_press')">💪 Arnold Press</button>
+            <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('scaption')">🩺 Scaption Full-Can</button>
             <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('pushup')">💪 Standard Push-Up</button>
             <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('bird_dog')">🩺 Bird Dog (Spine)</button>
             <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('cat_cow')">🧘 Cat-Cow Mobility</button>
