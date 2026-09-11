@@ -29,12 +29,31 @@ export class FlexAlignApp {
     this.voice = new ElevenLabsVoice();
     this._voiceEnabled = true;
 
-    // Hands-Free "Hey Coach" Voice Listener
+    // Interactive Voice Call Mode State
+    this.isCallActive = false;
+    this.callDurationSecs = 0;
+    this.callTimerInterval = null;
+    this.isCallMuted = false;
+
+    // Cross-wire Voice Engine speaking state for echo suppression & visual wave sync
+    this.voice.onSpeakingStart = () => {
+      if (this.voiceListener) this.voiceListener.setCoachSpeaking(true);
+      this.updateCallSpeakingState(true);
+    };
+
+    this.voice.onSpeakingEnd = () => {
+      if (this.voiceListener) this.voiceListener.setCoachSpeaking(false);
+      this.updateCallSpeakingState(false);
+    };
+
+    // Hands-Free "Hey Coach" Voice Listener & Interactive Call Engine
     this.voiceListener = new VoiceListener({
       onWakeDetected: (initialQuery) => this.handleWakeDetected(initialQuery),
       onWakeWord: (query) => this.handleWakeWordQuery(query),
-      onListeningChange: (isListening, isAwaiting) => this.updateVoiceWakeUI(isListening, isAwaiting),
+      onListeningChange: (isListening, isAwaiting, isCall) => this.updateVoiceWakeUI(isListening, isAwaiting, isCall),
       onInterimSpeech: (text, isAwaiting) => this.updateVoiceInterimHUD(text, isAwaiting),
+      onCallSpeechComplete: (query) => this.handleCallSpeechComplete(query),
+      onUserBargeIn: (text) => this.handleUserBargeIn(text),
       onError: (err) => console.warn('Voice listener error:', err)
     });
 
@@ -595,7 +614,196 @@ export class FlexAlignApp {
     this.toggleCoachDrawer();
   }
 
-  // ── Hands-Free "Hey Coach" Voice Interaction ──────────────────
+  // ── Hands-Free "Hey Coach" & Interactive Call Mode ──────────────
+
+  toggleCallMode() {
+    if (this.isCallActive) {
+      this.endCallMode();
+    } else {
+      this.startCallMode();
+    }
+  }
+
+  startCallMode() {
+    if (this.isCallActive) return;
+    this.isCallActive = true;
+    this.isCallMuted = false;
+    this.callDurationSecs = 0;
+
+    // Visual updates on buttons & overlay
+    const callBtn = document.getElementById('callModeNavBtn');
+    const drawerCallBtn = document.getElementById('btnDrawerCallMode');
+    const overlay = document.getElementById('aiCallOverlay');
+    const timerEl = document.getElementById('callTimer');
+    const userSubEl = document.getElementById('callUserTranscript');
+    const coachSubEl = document.getElementById('callCoachResponse');
+    const subtitleLabel = document.getElementById('callSubtitleLabel');
+
+    if (callBtn) {
+      callBtn.classList.add('in-call');
+      const label = callBtn.querySelector('.call-nav-label');
+      if (label) label.textContent = 'In Call (Live)';
+    }
+    if (drawerCallBtn) {
+      drawerCallBtn.classList.add('active');
+      drawerCallBtn.textContent = '🔴 End Call';
+    }
+
+    if (overlay) {
+      overlay.classList.remove('hidden');
+      overlay.classList.remove('speaking');
+      overlay.classList.add('listening');
+    }
+    if (subtitleLabel) subtitleLabel.textContent = 'LISTENING TO YOU';
+    if (userSubEl) userSubEl.textContent = 'Say your form question or ask for real-time cues...';
+    if (coachSubEl) {
+      coachSubEl.style.display = 'none';
+      coachSubEl.textContent = '';
+    }
+    if (timerEl) timerEl.textContent = '00:00';
+
+    // Start elapsed call timer
+    clearInterval(this.callTimerInterval);
+    this.callTimerInterval = setInterval(() => {
+      this.callDurationSecs++;
+      const mins = String(Math.floor(this.callDurationSecs / 60)).padStart(2, '0');
+      const secs = String(this.callDurationSecs % 60).padStart(2, '0');
+      if (timerEl) timerEl.textContent = `${mins}:${secs}`;
+    }, 1000);
+
+    // Audio chime
+    if (this.audio) this.audio.playCoachWakeChime();
+
+    // Start full-duplex speech recognition
+    if (this.voiceListener) {
+      this.voiceListener.startCallMode();
+    }
+
+    // Opening greeting
+    const exDef = getExerciseDefinition(this.evaluator.currentExercise) || GYM_EXERCISES[this.evaluator.currentExercise] || PT_EXERCISES[this.evaluator.currentExercise];
+    const exName = (exDef && exDef.name) || 'your exercise';
+    const greeting = `Connected to Coach. I am watching your ${exName}. What can I help you adjust?`;
+
+    setTimeout(() => {
+      if (this.isCallActive && this.voice && this._voiceEnabled) {
+        if (coachSubEl) {
+          coachSubEl.textContent = `"${greeting}"`;
+          coachSubEl.style.display = 'block';
+        }
+        this.voice.speak(greeting);
+      }
+    }, 350);
+
+    this.showToast('Call Mode Active: Talk freely with your AI Coach!', '📞');
+  }
+
+  endCallMode() {
+    if (!this.isCallActive) return;
+    this.isCallActive = false;
+    clearInterval(this.callTimerInterval);
+
+    // Stop speaking & listening
+    if (this.voice) this.voice.stop();
+    if (this.voiceListener) this.voiceListener.stopCallMode();
+
+    const callBtn = document.getElementById('callModeNavBtn');
+    const drawerCallBtn = document.getElementById('btnDrawerCallMode');
+    const overlay = document.getElementById('aiCallOverlay');
+
+    if (callBtn) {
+      callBtn.classList.remove('in-call');
+      const label = callBtn.querySelector('.call-nav-label');
+      if (label) label.textContent = 'Talk to Coach';
+    }
+    if (drawerCallBtn) {
+      drawerCallBtn.classList.remove('active');
+      drawerCallBtn.textContent = '📞 Call Mode';
+    }
+    if (overlay) {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('speaking', 'listening');
+    }
+
+    this.showToast('Coaching Call Ended.', '🛑');
+  }
+
+  toggleCallMute() {
+    if (!this.isCallActive) return;
+    this.isCallMuted = !this.isCallMuted;
+
+    if (this.voiceListener) {
+      if (this.isCallMuted) {
+        this.voiceListener.stop();
+      } else {
+        this.voiceListener.startCallMode();
+      }
+    }
+
+    const icon = document.getElementById('callMuteIcon');
+    const label = document.getElementById('callMuteLabel');
+    if (icon) icon.textContent = this.isCallMuted ? '🔇' : '🎙️';
+    if (label) label.textContent = this.isCallMuted ? 'Unmute' : 'Mute';
+    this.showToast(this.isCallMuted ? 'Microphone Muted' : 'Microphone Active', this.isCallMuted ? '🔇' : '🎙️');
+  }
+
+  interruptCoach() {
+    if (this.voice) {
+      this.voice.stop();
+    }
+    if (this.voiceListener) {
+      this.voiceListener.setCoachSpeaking(false);
+    }
+    this.updateCallSpeakingState(false);
+    this.showToast('Coach interrupted.', '⚡');
+  }
+
+  handleUserBargeIn(text) {
+    if (this.voice && this.voice.isSpeaking) {
+      this.voice.stop();
+      if (this.voiceListener) {
+        this.voiceListener.setCoachSpeaking(false);
+      }
+      this.updateCallSpeakingState(false);
+    }
+  }
+
+  handleCallSpeechComplete(query) {
+    if (!this.isCallActive || !query || query.trim().length < 2) return;
+
+    const userSubEl = document.getElementById('callUserTranscript');
+    const subtitleLabel = document.getElementById('callSubtitleLabel');
+    if (userSubEl) userSubEl.textContent = `"${query.trim()}"`;
+    if (subtitleLabel) subtitleLabel.textContent = 'COACH THINKING...';
+
+    // Submit question directly to AI with isVoiceCall flag true
+    this.sendChatMessage(query.trim(), true);
+  }
+
+  updateCallSpeakingState(isSpeaking) {
+    const overlay = document.getElementById('aiCallOverlay');
+    const subtitleLabel = document.getElementById('callSubtitleLabel');
+
+    if (overlay) {
+      if (isSpeaking) {
+        overlay.classList.add('speaking');
+        overlay.classList.remove('listening');
+      } else {
+        overlay.classList.remove('speaking');
+        overlay.classList.add('listening');
+      }
+    }
+
+    if (subtitleLabel && this.isCallActive) {
+      subtitleLabel.textContent = isSpeaking ? 'COACH SPEAKING' : 'LISTENING TO YOU';
+    }
+  }
+
+  setVoiceRate(rate) {
+    if (this.voice) {
+      this.voice.setRate(rate);
+      this.showToast(`Voice speed: ${rate}x`, '⚡');
+    }
+  }
 
   handleVoiceWakeButtonClick() {
     if (!this.voiceListener) return;
@@ -662,18 +870,12 @@ export class FlexAlignApp {
   }
 
   handleWakeDetected(initialQuery) {
-    // Play futuristic wake acknowledgement chime
     if (this.audio) {
       this.audio.playCoachWakeChime();
     }
 
-    // Instantly open AI Coach drawer so user SEES the AI coach as soon as they speak
     this.openCoachDrawer();
-
-    // Show HUD toast acknowledging wake word
     this.showVoiceHudToast(initialQuery || 'Listening for your question...');
-
-    // Show listening wave indicator right in the AI Coach conversation
     this.showListeningIndicatorInChat();
   }
 
@@ -681,10 +883,9 @@ export class FlexAlignApp {
     this.removeListeningIndicatorFromChat();
     this.openCoachDrawer();
 
-    // If a specific question was asked, forward it directly to the AI Coach
     if (query && query.trim().length > 1) {
       setTimeout(() => {
-        this.sendChatMessage(query.trim());
+        this.sendChatMessage(query.trim(), false);
       }, 200);
     }
   }
@@ -716,7 +917,7 @@ export class FlexAlignApp {
     if (indicator) indicator.remove();
   }
 
-  updateVoiceWakeUI(isListening, isAwaitingQuestion) {
+  updateVoiceWakeUI(isListening, isAwaitingQuestion, isCallMode) {
     const navBtn = document.getElementById('voiceWakeBtn');
     const drawerMicBtn = document.getElementById('btnDrawerMic');
     const drawerBtn = document.getElementById('btnDrawerVoiceWake');
@@ -747,7 +948,7 @@ export class FlexAlignApp {
     }
 
     const toast = document.getElementById('voiceHudToast');
-    if (toast) {
+    if (toast && !isCallMode) {
       if (isAwaitingQuestion) {
         toast.classList.remove('hidden');
         const transcriptEl = document.getElementById('voiceHudTranscript');
@@ -775,6 +976,10 @@ export class FlexAlignApp {
     if (chatInput && isAwaitingQuestion && transcript) {
       chatInput.value = transcript;
     }
+    const callUserTranscript = document.getElementById('callUserTranscript');
+    if (callUserTranscript && this.isCallActive && transcript) {
+      callUserTranscript.textContent = `"${transcript}"`;
+    }
   }
 
   showVoiceHudToast(text) {
@@ -789,7 +994,7 @@ export class FlexAlignApp {
 
   // ── AI Coach Chat System ──────────────────────────────────────
 
-  async sendChatMessage(userText) {
+  async sendChatMessage(userText, isVoiceCall = false) {
     if (!userText || !userText.trim() || this.gemini.isLoading) return;
     userText = userText.trim();
 
@@ -801,12 +1006,16 @@ export class FlexAlignApp {
     // Add user bubble
     this.addChatBubble('user', userText);
 
-    // Show typing indicator
+    // Show typing indicator in chat and call overlay
     this.showTypingIndicator(true);
+    const callSubtitleLabel = document.getElementById('callSubtitleLabel');
+    if (callSubtitleLabel && this.isCallActive) {
+      callSubtitleLabel.textContent = 'COACH THINKING...';
+    }
 
     // Build session context
-    const exObj = GYM_EXERCISES[this.evaluator.currentExercise] || PT_EXERCISES[this.evaluator.currentExercise];
-    const exName = (exObj && exObj.name) || this.evaluator.currentExercise;
+    const exDef = getExerciseDefinition(this.evaluator.currentExercise) || GYM_EXERCISES[this.evaluator.currentExercise] || PT_EXERCISES[this.evaluator.currentExercise];
+    const exName = (exDef && exDef.name) || this.evaluator.currentExercise;
     const sessionCtx = {
       exercise: exName,
       mode: this.evaluator.mode,
@@ -816,26 +1025,30 @@ export class FlexAlignApp {
       faults: this.evaluator.faultCount
     };
 
-    const result = await this.gemini.chat(userText, sessionCtx);
+    const result = await this.gemini.chat(userText, sessionCtx, isVoiceCall);
 
     this.showTypingIndicator(false);
     if (sendBtn) sendBtn.disabled = false;
 
+    let responseText = '';
     if (result.success && result.text) {
-      this.addChatBubble('assistant', result.text);
-      // Speak response if voice is enabled (strip markdown tokens before speaking)
-      if (this._voiceEnabled && this.voice) {
-        const spoken = result.text.replace(/[*_#•]/g, '').replace(/⚡|⚠️|🌟|👍|🤖/g, '');
-        this.voice.speak(spoken);
-      }
+      responseText = result.text;
     } else {
-      // Graceful biomechanics coaching fallback — never dump raw API JSON to the user!
-      const fallbackResponse = this.gemini.generateSmartFallback(userText, sessionCtx);
-      this.addChatBubble('assistant', fallbackResponse);
-      if (this._voiceEnabled && this.voice) {
-        const spoken = fallbackResponse.replace(/[*_#•]/g, '').replace(/⚡|⚠️|🌟|👍|🤖/g, '');
-        this.voice.speak(spoken);
-      }
+      responseText = this.gemini.generateSmartFallback(userText, sessionCtx, isVoiceCall);
+    }
+
+    this.addChatBubble('assistant', responseText);
+
+    // Update Call Overlay subtitle
+    const callCoachResponse = document.getElementById('callCoachResponse');
+    if (callCoachResponse && this.isCallActive) {
+      callCoachResponse.textContent = `"${this.voice ? this.voice.cleanTextForSpeech(responseText) : responseText}"`;
+      callCoachResponse.style.display = 'block';
+    }
+
+    // Speak response if voice is enabled or in active call
+    if ((this._voiceEnabled || this.isCallActive) && this.voice) {
+      this.voice.speak(responseText);
     }
   }
 
@@ -1799,6 +2012,13 @@ export class FlexAlignApp {
     bindClick('aiCoachBackdrop', () => this.closeCoachDrawer());
     bindClick('btnCloseGuidanceBanner', (e) => this.dismissCoachTip(e));
 
+    // Interactive Call Mode bindings
+    bindClick('callModeNavBtn', () => this.toggleCallMode());
+    bindClick('btnDrawerCallMode', () => this.toggleCallMode());
+    bindClick('btnCallMute', () => this.toggleCallMute());
+    bindClick('btnCallInterrupt', () => this.interruptCoach());
+    bindClick('btnEndCall', () => this.endCallMode());
+
     // Hands-free "Hey Coach" voice bindings
     bindClick('voiceWakeBtn', () => this.handleVoiceWakeButtonClick());
     bindClick('btnDrawerVoiceWake', () => this.toggleVoiceWake());
@@ -1824,6 +2044,14 @@ export class FlexAlignApp {
           const voiceName = voiceSelect.options[voiceSelect.selectedIndex].text;
           this.showToast(`AI Coach Voice: ${voiceName}`, '🎙️');
         }
+      });
+    }
+
+    // Voice Speed Selector
+    const voiceSpeedSelect = document.getElementById('aiVoiceSpeedSelect');
+    if (voiceSpeedSelect) {
+      voiceSpeedSelect.addEventListener('change', (e) => {
+        this.setVoiceRate(e.target.value);
       });
     }
 

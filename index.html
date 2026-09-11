@@ -59,6 +59,10 @@
       closeCoachDrawer: function () { this._forward('closeCoachDrawer', []); },
       dismissCoachTip: function (ev) { this._forward('dismissCoachTip', [ev]); },
       toggleVoiceWake: function () { this._forward('toggleVoiceWake', []); },
+      toggleCallMode: function () { this._forward('toggleCallMode', []); },
+      endCallMode: function () { this._forward('endCallMode', []); },
+      toggleCallMute: function () { this._forward('toggleCallMute', []); },
+      interruptCoach: function () { this._forward('interruptCoach', []); },
       toggleSound: function () { this._forward('toggleSound', []); },
       handleVideoUpload: function (ev) { this._forward('handleVideoUpload', [ev]); },
       updateSafeThreshold: function (val) { this._forward('updateSafeThreshold', [val]); },
@@ -105,6 +109,10 @@
 
       <!-- Top Controls -->
       <div class="top-controls">
+        <button id="callModeNavBtn" class="call-mode-nav-btn" onclick="window.app.toggleCallMode()" title="Interactive Voice Call Mode: Talk directly with Coach AI in real time">
+          <span class="call-mic-icon">📞</span>
+          <span class="call-nav-label">Talk to Coach</span>
+        </button>
         <button id="voiceWakeBtn" class="voice-wake-nav-btn active" title="Talk to AI Coach (Voice Wake / Push-to-Talk)">
           <span class="voice-mic-wave">🎙️</span>
           <span class="voice-wake-label">"Hey Coach"</span>
@@ -710,12 +718,22 @@
       <div class="ai-toolbar-group">
         <span class="ai-toolbar-icon">🎙️</span>
         <select id="aiVoiceSelect" class="ai-voice-select" title="Select Voice Persona">
-          <option value="21m00Tcm4TlvDq8ikWAM" selected>Rachel (Clinical Pro)</option>
-          <option value="onwK4e9ZLuTAKqWW03F9">Daniel (Authoritative)</option>
-          <option value="ErXwobaYiN019PkySvjV">Antoni (Specialist)</option>
+          <option value="21m00Tcm4TlvDq8ikWAM" selected>Rachel (Clinical Pro - Neural)</option>
+          <option value="onwK4e9ZLuTAKqWW03F9">Daniel (Authoritative Coach)</option>
+          <option value="ErXwobaYiN019PkySvjV">Antoni (Sports Specialist)</option>
+          <option value="browser_natural_female">Ava / Samantha (Natural Female)</option>
+          <option value="browser_natural_male">Guy / Daniel (Natural Male)</option>
+        </select>
+        <select id="aiVoiceSpeedSelect" class="ai-voice-select" style="max-width: 90px;" title="Voice Speed Regulation">
+          <option value="0.9">0.9x Slow</option>
+          <option value="1.05" selected>1.0x Normal</option>
+          <option value="1.2">1.2x Energetic</option>
         </select>
       </div>
       <div class="ai-toolbar-actions">
+        <button id="btnDrawerCallMode" class="ai-call-status-btn" onclick="window.app.toggleCallMode()" title="Toggle Interactive Coaching Call">
+          📞 Call Mode
+        </button>
         <button id="btnDrawerVoiceWake" class="ai-wake-status-btn active" onclick="window.app.toggleVoiceWake()" title="Toggle hands-free 'Hey Coach' listener">
           🎙️ "Hey Coach" ON
         </button>
@@ -774,6 +792,48 @@
     <div class="voice-hud-text">
       <span class="voice-hud-title">"Hey Coach" Listening...</span>
       <span id="voiceHudTranscript" class="voice-hud-transcript">"Say your form question..."</span>
+    </div>
+  </div>
+
+  <!-- Interactive Full-Duplex AI Coach Call Overlay -->
+  <div id="aiCallOverlay" class="ai-call-overlay hidden">
+    <div class="call-overlay-card">
+      <div class="call-header">
+        <div class="call-status-indicator">
+          <span class="call-pulse-dot"></span>
+          <span id="callStatusTitle" class="call-status-title">LIVE COACHING CALL · COACH RACHEL</span>
+        </div>
+        <div id="callTimer" class="call-timer">00:00</div>
+      </div>
+
+      <div class="call-wave-visualizer">
+        <div class="call-bar bar-1"></div>
+        <div class="call-bar bar-2"></div>
+        <div class="call-bar bar-3"></div>
+        <div class="call-bar bar-4"></div>
+        <div class="call-bar bar-5"></div>
+      </div>
+
+      <div class="call-body">
+        <div class="call-subtitle-label" id="callSubtitleLabel">LISTENING TO YOU</div>
+        <div id="callUserTranscript" class="call-user-transcript">"Speak freely... Ask about your depth, form, or reps"</div>
+        <div id="callCoachResponse" class="call-coach-response" style="display: none;"></div>
+      </div>
+
+      <div class="call-actions-row">
+        <button id="btnCallMute" class="call-action-btn" onclick="window.app.toggleCallMute()" title="Mute / Unmute Microphone">
+          <span id="callMuteIcon">🎙️</span>
+          <span id="callMuteLabel">Mute</span>
+        </button>
+        <button id="btnCallInterrupt" class="call-action-btn interrupt-btn" onclick="window.app.interruptCoach()" title="Interrupt Coach (Barge In)">
+          <span>⚡</span>
+          <span>Interrupt</span>
+        </button>
+        <button id="btnEndCall" class="call-action-btn end-call-btn" onclick="window.app.endCallMode()" title="End Coaching Call">
+          <span>🛑</span>
+          <span>End Call</span>
+        </button>
+      </div>
     </div>
   </div>
 

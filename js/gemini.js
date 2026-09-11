@@ -64,7 +64,7 @@ Current app capabilities: real-time pose tracking, rep counting, form compliance
   /**
    * Send a user query to the AI coach with current workout session context.
    */
-  async chat(userMessage, sessionContext = null) {
+  async chat(userMessage, sessionContext = null, isVoiceCall = false) {
     if (this.isLoading) {
       return { success: false, text: "Thinking... one moment!", isBusy: true };
     }
@@ -83,6 +83,10 @@ Compliance Score: ${compliance !== undefined ? compliance : 100}%
 Detected Kinetic Faults: ${faults !== undefined ? faults : 0}
 
 User Question: "${userMessage}"`;
+
+      if (isVoiceCall) {
+        promptWithContext += `\n[VOICE CALL MODE: You are on an audio call with the athlete during their set. Give a direct, motivating, spoken answer in 1-2 concise sentences. Do NOT use bullet points, lists, markdown bold/italics, or emojis.]`;
+      }
     }
 
     // Append to local history for context continuity
@@ -146,7 +150,7 @@ User Question: "${userMessage}"`;
     this.history.pop(); // Remove pending message from API history
     this.isLoading = false;
 
-    const fallbackResponse = this.generateSmartFallback(userMessage, sessionContext);
+    const fallbackResponse = this.generateSmartFallback(userMessage, sessionContext, isVoiceCall);
     return {
       success: true,
       text: fallbackResponse,
@@ -158,7 +162,7 @@ User Question: "${userMessage}"`;
    * Generates a context-aware biomechanics coaching response locally
    * when cloud API rate limits are temporarily active.
    */
-  generateSmartFallback(userMessage, sessionContext) {
+  generateSmartFallback(userMessage, sessionContext, isVoiceCall = false) {
     const query = (userMessage || '').toLowerCase();
     const ctx = sessionContext || {};
     const ex = ctx.exercise || 'your current exercise';
@@ -166,7 +170,23 @@ User Question: "${userMessage}"`;
     const compliance = ctx.compliance !== undefined ? Number(ctx.compliance) : 0;
     const peakRom = ctx.peakRom || '0°';
     const faults = ctx.faults !== undefined ? Number(ctx.faults) : 0;
-    const mode = ctx.mode === 'pt' || ctx.mode === 'rehab' ? 'Rehab/PT' : 'Gym';
+    const mode = ctx.mode === 'pt' || ctx.mode === 'rehab' ? 'Rehab' : 'Gym';
+
+    if (isVoiceCall) {
+      if (query.includes('how did') || query.includes('how was') || query.includes('workout') || query.includes('session')) {
+        if (reps === 0) {
+          return `You haven't completed any reps for ${ex} yet! Begin your first repetition and I will analyze your depth and form.`;
+        }
+        return `You have logged ${reps} reps of ${ex} with a peak range of motion of ${peakRom}. Your form compliance is at ${compliance} percent with ${faults} faults. Keep your chest up and drive through your heels!`;
+      }
+      if (query.includes('depth') || query.includes('rom') || query.includes('angle')) {
+        return `Your current peak range of motion is ${peakRom}. Focus on hitting full parallel depth with smooth, controlled deceleration.`;
+      }
+      if (query.includes('form') || query.includes('technique')) {
+        return `Your form compliance is ${compliance} percent for ${ex}. Keep your spine neutral, brace your core, and control the eccentric descent.`;
+      }
+      return `Looking solid with ${ex} at ${reps} reps. Keep your breathing rhythmic, brace your core, and maintain clean joint alignment!`;
+    }
 
     let advice = '';
 

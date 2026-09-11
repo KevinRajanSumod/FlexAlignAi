@@ -863,6 +863,43 @@
   font-size: 0.85rem;
 }
 
+/* Call Mode Nav Button */
+.call-mode-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.38);
+  color: #a7f3d0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--duration-normal) ease;
+  font-family: var(--font-sans);
+}
+
+.call-mode-nav-btn:hover {
+  background: rgba(16, 185, 129, 0.24);
+  border-color: rgba(16, 185, 129, 0.65);
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.4);
+}
+
+.call-mode-nav-btn.in-call {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(6, 95, 70, 0.5));
+  border-color: #34d399;
+  color: #ffffff;
+  box-shadow: 0 0 22px rgba(52, 211, 153, 0.65);
+  animation: callGlowPulse 2s infinite ease-in-out;
+}
+
+@keyframes callGlowPulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(52, 211, 153, 0.5); }
+  50% { box-shadow: 0 0 26px rgba(52, 211, 153, 0.85); }
+}
+
 /* Drawer toolbar status button */
 .ai-wake-status-btn {
   background: rgba(168, 85, 247, 0.15);
@@ -883,6 +920,27 @@
   border-color: rgba(168, 85, 247, 0.5);
   color: #ffffff;
   box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+}
+
+.ai-call-status-btn {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+.ai-call-status-btn.active {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #fca5a5;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
 }
 
 /* Floating Voice HUD Toast */
@@ -944,6 +1002,212 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Interactive Full-Duplex AI Coach Call Overlay
+   ═══════════════════════════════════════════════════════════════ */
+.ai-call-overlay {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 1060;
+  max-width: 420px;
+  width: calc(100vw - 56px);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: callOverlayIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-call-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(30px) scale(0.96);
+}
+
+@keyframes callOverlayIn {
+  from { opacity: 0; transform: translateY(30px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.call-overlay-card {
+  background: linear-gradient(135deg, rgba(14, 20, 38, 0.96), rgba(8, 11, 24, 0.98));
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  border-radius: 20px;
+  padding: 16px 20px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75), 0 0 32px rgba(16, 185, 129, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.call-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 10px;
+}
+
+.call-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.call-pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 12px #34d399;
+  animation: dotPulse 1.4s infinite ease-in-out;
+}
+
+@keyframes dotPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.6; }
+}
+
+.call-status-title {
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #6ee7b7;
+  text-transform: uppercase;
+}
+
+.call-timer {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+/* Soundwave visualizer bars */
+.call-wave-visualizer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 36px;
+  padding: 4px 0;
+}
+
+.call-bar {
+  width: 4px;
+  height: 8px;
+  border-radius: 3px;
+  background: #34d399;
+  transition: height 0.15s ease, background 0.3s ease;
+}
+
+.ai-call-overlay.speaking .call-bar {
+  background: #38bdf8;
+  animation: waveActive 0.6s infinite ease-in-out alternate;
+}
+
+.ai-call-overlay.listening .call-bar {
+  background: #34d399;
+  animation: waveActive 0.8s infinite ease-in-out alternate;
+}
+
+.call-bar.bar-1 { animation-delay: 0.0s; height: 12px; }
+.call-bar.bar-2 { animation-delay: 0.15s; height: 24px; }
+.call-bar.bar-3 { animation-delay: 0.3s; height: 32px; }
+.call-bar.bar-4 { animation-delay: 0.15s; height: 22px; }
+.call-bar.bar-5 { animation-delay: 0.05s; height: 14px; }
+
+@keyframes waveActive {
+  0% { transform: scaleY(0.35); }
+  100% { transform: scaleY(1.35); }
+}
+
+.call-body {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 54px;
+}
+
+.call-subtitle-label {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+}
+
+.call-user-transcript {
+  font-size: 0.84rem;
+  color: #f1f5f9;
+  font-style: italic;
+  line-height: 1.35;
+}
+
+.call-coach-response {
+  font-size: 0.86rem;
+  color: #38bdf8;
+  font-weight: 500;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.call-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.call-action-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  transition: all var(--duration-fast) ease;
+}
+
+.call-action-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.call-action-btn.interrupt-btn {
+  background: rgba(234, 179, 8, 0.15);
+  border-color: rgba(234, 179, 8, 0.4);
+  color: #fef08a;
+}
+
+.call-action-btn.interrupt-btn:hover {
+  background: rgba(234, 179, 8, 0.28);
+}
+
+.call-action-btn.end-call-btn {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+}
+
+.call-action-btn.end-call-btn:hover {
+  background: rgba(239, 68, 68, 0.35);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
 }
 
 /* ═══════════════════════════════════════════════════════════════

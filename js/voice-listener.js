@@ -1,7 +1,7 @@
 /**
- * FlexAlign AI - Hands-Free "Hey Coach" Voice Listener
- * Uses Web Speech API SpeechRecognition for real-time continuous wake-word
- * detection and speech-to-text querying without manual button presses.
+ * FlexAlign AI - Intelligent Conversational Voice Engine & Wake-Word Detector
+ * Features full-duplex interactive Call Mode, smart silence end-of-speech detection,
+ * acoustic self-voice echo suppression, barge-in interruption, and continuous hands-free listening.
  */
 
 export class VoiceListener {
@@ -10,23 +10,35 @@ export class VoiceListener {
     this.onWakeWord = options.onWakeWord || (() => {});
     this.onListeningChange = options.onListeningChange || (() => {});
     this.onInterimSpeech = options.onInterimSpeech || (() => {});
+    this.onCallSpeechComplete = options.onCallSpeechComplete || (() => {});
+    this.onUserBargeIn = options.onUserBargeIn || (() => {});
     this.onError = options.onError || (() => {});
 
     this.recognition = null;
     this.isListening = false;
     this.isEnabled = true;
+    this.isCallMode = false;
     this.isAwaitingQuestion = false;
-    this.awaitingTimeout = null;
-    this._wakeDetectedRecently = false;
+    this.isCoachSpeaking = false; // Self-voice echo suppression flag
 
-    // Wake word pattern: "Hey Coach", "Hi Coach", "Coach", "Okay Coach"
-    this.wakeWordRegex = /\b(?:hey|hay|hi|ok|okay|a\.i\.|ai)?\s*coach\b\s*[,:\-\s]*(.*)/i;
+    // Speech Accumulation & Silence Debounce
+    this._accumulatedText = '';
+    this._silenceDebounceTimer = null;
+    this._awaitingTimeout = null;
+    this._wakeDetectedRecently = false;
+    this._restartTimer = null;
+
+    // Wake word patterns: "Hey Coach", "Hi Coach", "Coach", "Okay Coach", "Yo Coach"
+    this.wakeWordRegex = /\b(?:hey|hay|hi|ok|okay|yo|a\.i\.|ai)?\s*coach\b\s*[,:\-\s]*(.*)/i;
 
     this._initRecognition();
   }
 
   _initRecognition() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = typeof window !== 'undefined'
+      ? (window.SpeechRecognition || window.webkitSpeechRecognition)
+      : null;
+
     if (!SpeechRecognition) {
       console.warn('Web Speech Recognition API is not supported in this browser.');
       return;
@@ -41,39 +53,59 @@ export class VoiceListener {
 
       this.recognition.onstart = () => {
         this.isListening = true;
-        this.onListeningChange(true, this.isAwaitingQuestion);
+        this._notifyState();
       };
 
       this.recognition.onresult = (event) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
+        // Acoustic Echo Suppression: Ignore mic input while Coach is speaking to prevent self-transcription loop
+        if (this.isCoachSpeaking) {
+          // Check for intentional user barge-in (user talking loudly to interrupt)
+          let currentSpoken = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            currentSpoken += event.results[i][0].transcript + ' ';
+          }
+          currentSpoken = currentSpoken.trim();
+          if (currentSpoken.length > 6) {
+            this.onUserBargeIn(currentSpoken);
+          }
+          return;
+        }
+
+        let interim = '';
+        let final = '';
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           const res = event.results[i];
           const text = res[0].transcript;
           if (res.isFinal) {
-            finalTranscript += text + ' ';
+            final += text + ' ';
           } else {
-            interimTranscript += text;
+            interim += text;
           }
         }
 
-        const currentText = (finalTranscript || interimTranscript).trim();
-        if (currentText) {
-          this.onInterimSpeech(currentText, this.isAwaitingQuestion);
-          this._processTranscript(currentText, Boolean(finalTranscript));
+        const currentText = (final || interim).trim();
+        if (!currentText) return;
+
+        // Notify app for live HUD waveform / subtitle feedback
+        this.onInterimSpeech(currentText, this.isAwaitingQuestion || this.isCallMode);
+
+        if (this.isCallMode) {
+          this._handleCallModeSpeech(currentText, Boolean(final));
+        } else {
+          this._handleWakeModeSpeech(currentText, Boolean(final));
         }
       };
 
       this.recognition.onerror = (event) => {
         if (event.error === 'not-allowed') {
-          console.warn('VoiceListener: Microphone permission denied or blocked without user gesture.');
+          console.warn('VoiceListener: Microphone permission not granted.');
           this.isEnabled = false;
           this.onError(event.error);
           return;
         }
 
-        // 'no-speech' and 'aborted' are normal in continuous listening
+        // 'no-speech' and 'aborted' are standard lifecycle events during pauses
         if (event.error !== 'no-speech' && event.error !== 'aborted') {
           console.warn('VoiceListener speech recognition error:', event.error);
           this.onError(event.error);
@@ -82,18 +114,20 @@ export class VoiceListener {
 
       this.recognition.onend = () => {
         this.isListening = false;
-        this.onListeningChange(false, this.isAwaitingQuestion);
-        // Automatically restart if continuous hands-free mode is enabled
-        if (this.isEnabled) {
-          setTimeout(() => {
-            if (this.isEnabled && !this.isListening) {
+        this._notifyState();
+
+        // Continuous listening auto-restart if enabled or in call mode
+        if (this.isEnabled || this.isCallMode) {
+          clearTimeout(this._restartTimer);
+          this._restartTimer = setTimeout(() => {
+            if ((this.isEnabled || this.isCallMode) && !this.isListening) {
               try {
                 this.recognition.start();
               } catch (e) {
                 // Ignore if already starting
               }
             }
-          }, 450);
+          }, 350);
         }
       };
     } catch (err) {
@@ -101,80 +135,158 @@ export class VoiceListener {
     }
   }
 
-  _processTranscript(text, isFinal) {
-    // Case 1: We were already waiting for a question after user said "Hey Coach" or tapped Mic
+  setCoachSpeaking(isSpeaking) {
+    this.isCoachSpeaking = Boolean(isSpeaking);
+    if (this.isCoachSpeaking) {
+      clearTimeout(this._silenceDebounceTimer);
+    }
+  }
+
+  _notifyState() {
+    this.onListeningChange(this.isListening, this.isAwaitingQuestion, this.isCallMode);
+  }
+
+  /**
+   * Interactive Call Mode Speech Handler:
+   * Natural conversational flow without wake words.
+   * Debounces pauses (1.3s of silence) to capture complete user thoughts.
+   */
+  _handleCallModeSpeech(text, isFinal) {
+    this._accumulatedText = text;
+
+    // Reset silence timer on every chunk of speech
+    clearTimeout(this._silenceDebounceTimer);
+
+    // If user pauses for 1.3s or finishes sentence, submit question
+    const timeoutDuration = isFinal ? 850 : 1350;
+    this._silenceDebounceTimer = setTimeout(() => {
+      const fullQuery = this._accumulatedText.trim();
+      if (fullQuery.length > 2) {
+        this._accumulatedText = '';
+        this.onCallSpeechComplete(fullQuery);
+      }
+    }, timeoutDuration);
+  }
+
+  /**
+   * Hands-free "Hey Coach" wake-word handler
+   */
+  _handleWakeModeSpeech(text, isFinal) {
+    // Case 1: Already awaiting question after wake word
     if (this.isAwaitingQuestion) {
-      // Clean leading wake words if repeated
       let cleanText = text.replace(this.wakeWordRegex, '$1').trim();
       if (!cleanText) cleanText = text.trim();
 
-      if (isFinal && cleanText.length > 1) {
-        clearTimeout(this.awaitingTimeout);
-        this.isAwaitingQuestion = false;
-        this.onListeningChange(this.isListening, false);
-        this.onWakeWord(cleanText);
-      }
+      this._accumulatedText = cleanText;
+
+      clearTimeout(this._silenceDebounceTimer);
+      const timeoutDuration = isFinal ? 800 : 1400;
+
+      this._silenceDebounceTimer = setTimeout(() => {
+        const fullQuery = this._accumulatedText.trim();
+        if (fullQuery.length > 2) {
+          clearTimeout(this._awaitingTimeout);
+          this._accumulatedText = '';
+          this.isAwaitingQuestion = false;
+          this._notifyState();
+          this.onWakeWord(fullQuery);
+        }
+      }, timeoutDuration);
       return;
     }
 
-    // Case 2: Check if speech matches wake word "Hey Coach"
+    // Case 2: Listening for "Hey Coach"
     const match = text.match(this.wakeWordRegex);
     if (match) {
       const remainingQuery = (match[1] || '').trim();
 
-      // Immediately alert app so AI Coach drawer opens and user sees it!
       if (!this._wakeDetectedRecently) {
         this._wakeDetectedRecently = true;
         setTimeout(() => { this._wakeDetectedRecently = false; }, 3500);
         this.onWakeDetected(remainingQuery);
       }
 
-      if (remainingQuery.length > 3 && isFinal) {
-        // User said: "Hey coach how is my squat depth" in a single breath
+      if (remainingQuery.length > 4 && isFinal) {
+        // User asked in one continuous breath
         this.onWakeWord(remainingQuery);
       } else {
-        // Wake word triggered, now awaiting user's form question
+        // Wake word triggered, now awaiting question
         this.isAwaitingQuestion = true;
-        this.onListeningChange(this.isListening, true);
+        this._notifyState();
 
-        // Auto-cancel question waiting if user doesn't speak within 9 seconds
-        clearTimeout(this.awaitingTimeout);
-        this.awaitingTimeout = setTimeout(() => {
+        clearTimeout(this._awaitingTimeout);
+        this._awaitingTimeout = setTimeout(() => {
           this.isAwaitingQuestion = false;
-          this.onListeningChange(this.isListening, false);
+          this._notifyState();
         }, 9000);
       }
     }
   }
 
-  /**
-   * Push-to-talk / Direct Voice Query initiation (triggered by user button click)
-   */
-  startListeningQuery() {
+  // ── Call Mode Control API ──
+
+  startCallMode() {
+    this.isCallMode = true;
     this.isEnabled = true;
-    this.isAwaitingQuestion = true;
+    this.isAwaitingQuestion = false;
+    this._accumulatedText = '';
 
     if (this.recognition && !this.isListening) {
       try {
         this.recognition.start();
       } catch (err) {
-        console.warn('Speech recognition start failed or already active:', err);
+        // Ignore if already active
+      }
+    }
+    this._notifyState();
+  }
+
+  stopCallMode() {
+    this.isCallMode = false;
+    this._accumulatedText = '';
+    clearTimeout(this._silenceDebounceTimer);
+    this._notifyState();
+  }
+
+  toggleCallMode() {
+    if (this.isCallMode) {
+      this.stopCallMode();
+      return false;
+    } else {
+      this.startCallMode();
+      return true;
+    }
+  }
+
+  // ── Push-to-Talk / Standard Query API ──
+
+  startListeningQuery() {
+    this.isEnabled = true;
+    this.isAwaitingQuestion = true;
+    this._accumulatedText = '';
+
+    if (this.recognition && !this.isListening) {
+      try {
+        this.recognition.start();
+      } catch (err) {
+        // Ignore if already active
       }
     }
 
-    this.onListeningChange(true, true);
+    this._notifyState();
 
-    clearTimeout(this.awaitingTimeout);
-    this.awaitingTimeout = setTimeout(() => {
+    clearTimeout(this._awaitingTimeout);
+    this._awaitingTimeout = setTimeout(() => {
       this.isAwaitingQuestion = false;
-      this.onListeningChange(this.isListening, false);
+      this._notifyState();
     }, 9000);
   }
 
   stopListeningQuery() {
     this.isAwaitingQuestion = false;
-    clearTimeout(this.awaitingTimeout);
-    this.onListeningChange(this.isListening, false);
+    clearTimeout(this._awaitingTimeout);
+    clearTimeout(this._silenceDebounceTimer);
+    this._notifyState();
   }
 
   start() {
@@ -183,22 +295,28 @@ export class VoiceListener {
       try {
         this.recognition.start();
       } catch (err) {
-        console.warn('Speech recognition start failed or already active:', err);
+        // Ignore
       }
     }
+    this._notifyState();
   }
 
   stop() {
     this.isEnabled = false;
+    this.isCallMode = false;
     this.isAwaitingQuestion = false;
-    clearTimeout(this.awaitingTimeout);
+    clearTimeout(this._awaitingTimeout);
+    clearTimeout(this._silenceDebounceTimer);
+    clearTimeout(this._restartTimer);
+
     if (this.recognition && this.isListening) {
       try {
         this.recognition.stop();
       } catch (err) {
-        console.warn('Speech recognition stop error:', err);
+        // Ignore
       }
     }
+    this._notifyState();
   }
 
   toggle() {
@@ -212,6 +330,6 @@ export class VoiceListener {
   }
 
   isSupported() {
-    return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+    return Boolean(typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition));
   }
 }
