@@ -405,37 +405,177 @@ export class MotionSimulator {
       lms[14] = { x: 0.62 + elbowFlareX, y: elbowY, z: 0.10 - elbowRetractZ, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
-    // PATTERN B: SUPINE (BENCH PRESS / FLOOR PRESS / CRUNCH)
+    // PATTERN B: SUPINE (BENCH PRESS, GLUTE BRIDGE, STRAIGHT LEG RAISE)
     // ─────────────────────────────────────────────────────────────
-    } else if (posture === 'supine' || name.includes('bench') || name.includes('floor press')) {
-      const startAngle = mp.startAngle || 165;
-      const targetAngle = isFault ? 115 : (mp.targetAngle || customDef.defaultTarget || 80);
-      const angleDeg = startAngle - cycle * (startAngle - targetAngle);
-      const angleRad = (angleDeg * Math.PI) / 180;
-      const armLen = 0.20;
+    } else if (posture === 'supine' || name.includes('bench') || name.includes('floor press') || mType === 'bridge' || name.includes('bridge') || name.includes('thrust') || name.includes('slr') || name.includes('straight leg')) {
+      const isBridge = mType === 'bridge' || name.includes('bridge') || name.includes('thrust') || name.includes('pelvic');
+      const isSlr = mType === 'slr' || name.includes('straight leg') || name.includes('slr');
 
-      // Torso flat on bench/ground
-      lms[0]  = { x: 0.50, y: 0.82, z: 0.40, visibility: 0.98 };
-      lms[11] = { x: 0.42, y: 0.82, z: 0.25, visibility: 0.98 };
-      lms[12] = { x: 0.58, y: 0.82, z: 0.25, visibility: 0.98 };
-      lms[23] = { x: 0.44, y: 0.82, z: -0.15, visibility: 0.98 };
-      lms[24] = { x: 0.56, y: 0.82, z: -0.15, visibility: 0.98 };
+      if (isBridge) {
+        // Glute Bridge / Pelvic Thrust
+        const bridgeLift = isFault ? (0.12 * cycle) : (0.22 * cycle);
+        lms[0]  = { x: 0.50, y: 0.84, z: 0.38, visibility: 0.98 };
+        lms[11] = { x: 0.42, y: 0.84, z: 0.25, visibility: 0.98 };
+        lms[12] = { x: 0.58, y: 0.84, z: 0.25, visibility: 0.98 };
 
-      // Knees bent, feet on ground
-      lms[25] = { x: 0.43, y: 0.74, z: -0.35, visibility: 0.98 };
-      lms[26] = { x: 0.57, y: 0.74, z: -0.35, visibility: 0.98 };
-      lms[27] = { x: 0.43, y: 0.88, z: -0.45, visibility: 0.98 };
-      lms[28] = { x: 0.57, y: 0.88, z: -0.45, visibility: 0.98 };
+        // Hips elevate to full extension (collinear with shoulders and knees)
+        lms[23] = { x: 0.44, y: 0.84 - bridgeLift, z: -0.05, visibility: 0.98 };
+        lms[24] = { x: 0.56, y: 0.84 - bridgeLift, z: -0.05, visibility: 0.98 };
 
-      // Arms press upward towards ceiling
-      const elbowDropZ = 0.12 * cycle;
-      const flareX = isFault ? (0.06 * cycle) : 0;
-      lms[13] = { x: 0.38 - flareX, y: 0.78, z: 0.25 - elbowDropZ, visibility: 0.98 };
-      lms[14] = { x: 0.62 + flareX, y: 0.78, z: 0.25 - elbowDropZ, visibility: 0.98 };
+        // Knees bent ~90°
+        lms[25] = { x: 0.43, y: 0.76, z: -0.28, visibility: 0.98 };
+        lms[26] = { x: 0.57, y: 0.76, z: -0.28, visibility: 0.98 };
 
-      const wristElev = Math.sin(angleRad) * armLen;
-      lms[15] = { x: 0.40, y: 0.78 - wristElev, z: 0.25, visibility: 0.98 };
-      lms[16] = { x: 0.60, y: 0.78 - wristElev, z: 0.25, visibility: 0.98 };
+        // Feet flat on ground
+        lms[27] = { x: 0.43, y: 0.88, z: -0.34, visibility: 0.98 };
+        lms[28] = { x: 0.57, y: 0.88, z: -0.34, visibility: 0.98 };
+
+        // Arms resting by sides on ground
+        lms[13] = { x: 0.38, y: 0.86, z: 0.12, visibility: 0.98 };
+        lms[14] = { x: 0.62, y: 0.86, z: 0.12, visibility: 0.98 };
+        lms[15] = { x: 0.38, y: 0.88, z: -0.02, visibility: 0.98 };
+        lms[16] = { x: 0.62, y: 0.88, z: -0.02, visibility: 0.98 };
+
+      } else if (isSlr) {
+        // Straight Leg Raise (SLR)
+        lms[0]  = { x: 0.50, y: 0.84, z: 0.38, visibility: 0.98 };
+        lms[11] = { x: 0.42, y: 0.84, z: 0.25, visibility: 0.98 };
+        lms[12] = { x: 0.58, y: 0.84, z: 0.25, visibility: 0.98 };
+        lms[23] = { x: 0.44, y: 0.84, z: -0.15, visibility: 0.98 };
+        lms[24] = { x: 0.56, y: 0.84, z: -0.15, visibility: 0.98 };
+
+        // Non-working left leg resting on ground
+        lms[25] = { x: 0.43, y: 0.84, z: -0.38, visibility: 0.98 };
+        lms[27] = { x: 0.43, y: 0.88, z: -0.60, visibility: 0.98 };
+
+        // Active right leg raises with knee locked straight (~45°-60° hip flexion)
+        const liftAngleDeg = isFault ? (25 * cycle) : (48 * cycle);
+        const rad = (liftAngleDeg * Math.PI) / 180;
+        const thighLen = 0.22;
+        const shinLen = 0.24;
+
+        const kneeYPos = 0.84 - Math.sin(rad) * thighLen;
+        const kneeZPos = -0.15 - Math.cos(rad) * thighLen;
+        lms[26] = { x: 0.57, y: kneeYPos, z: kneeZPos, visibility: 0.98 };
+
+        // Knee lag fault if isFault
+        const kneeBend = isFault ? 0.06 : 0;
+        const ankleYPos = kneeYPos - Math.sin(rad) * shinLen + kneeBend;
+        const ankleZPos = kneeZPos - Math.cos(rad) * shinLen;
+        lms[28] = { x: 0.57, y: ankleYPos, z: ankleZPos, visibility: 0.98 };
+
+        // Arms resting by sides
+        lms[15] = { x: 0.38, y: 0.88, z: 0.05, visibility: 0.98 };
+        lms[16] = { x: 0.62, y: 0.88, z: 0.05, visibility: 0.98 };
+
+      } else {
+        // Bench Press / Floor Press
+        const startAngle = mp.startAngle || 165;
+        const targetAngle = isFault ? 115 : (mp.targetAngle || customDef.defaultTarget || 80);
+        const angleDeg = startAngle - cycle * (startAngle - targetAngle);
+        const angleRad = (angleDeg * Math.PI) / 180;
+        const armLen = 0.20;
+
+        // Torso flat on bench/ground
+        lms[0]  = { x: 0.50, y: 0.82, z: 0.40, visibility: 0.98 };
+        lms[11] = { x: 0.42, y: 0.82, z: 0.25, visibility: 0.98 };
+        lms[12] = { x: 0.58, y: 0.82, z: 0.25, visibility: 0.98 };
+        lms[23] = { x: 0.44, y: 0.82, z: -0.15, visibility: 0.98 };
+        lms[24] = { x: 0.56, y: 0.82, z: -0.15, visibility: 0.98 };
+
+        // Knees bent, feet on ground
+        lms[25] = { x: 0.43, y: 0.74, z: -0.35, visibility: 0.98 };
+        lms[26] = { x: 0.57, y: 0.74, z: -0.35, visibility: 0.98 };
+        lms[27] = { x: 0.43, y: 0.88, z: -0.45, visibility: 0.98 };
+        lms[28] = { x: 0.57, y: 0.88, z: -0.45, visibility: 0.98 };
+
+        // Arms press upward towards ceiling
+        const elbowDropZ = 0.12 * cycle;
+        const flareX = isFault ? (0.06 * cycle) : 0;
+        lms[13] = { x: 0.38 - flareX, y: 0.78, z: 0.25 - elbowDropZ, visibility: 0.98 };
+        lms[14] = { x: 0.62 + flareX, y: 0.78, z: 0.25 - elbowDropZ, visibility: 0.98 };
+
+        const wristElev = Math.sin(angleRad) * armLen;
+        lms[15] = { x: 0.40, y: 0.78 - wristElev, z: 0.25, visibility: 0.98 };
+        lms[16] = { x: 0.60, y: 0.78 - wristElev, z: 0.25, visibility: 0.98 };
+      }
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN B2: QUADRUPED (ALL-FOURS: BIRD DOG, CAT-COW)
+    // ─────────────────────────────────────────────────────────────
+    } else if (posture === 'quadruped' || mType === 'quadruped_reach' || mType === 'spinal_flexion' || name.includes('bird dog') || name.includes('cat cow') || name.includes('cat-cow')) {
+      const isCatCow = mType === 'spinal_flexion' || name.includes('cat');
+
+      // Hands planted firmly on floor under shoulders
+      lms[15] = { x: 0.40, y: 0.90, z: 0.15, visibility: 0.98 };
+      lms[16] = { x: 0.60, y: 0.90, z: 0.15, visibility: 0.98 };
+      lms[13] = { x: 0.40, y: 0.81, z: 0.15, visibility: 0.98 };
+      lms[14] = { x: 0.60, y: 0.81, z: 0.15, visibility: 0.98 };
+
+      // Knees planted on floor under hips
+      lms[25] = { x: 0.43, y: 0.90, z: -0.25, visibility: 0.98 };
+      lms[26] = { x: 0.57, y: 0.90, z: -0.25, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: 0.90, z: -0.48, visibility: 0.98 };
+      lms[28] = { x: 0.57, y: 0.90, z: -0.48, visibility: 0.98 };
+
+      if (isCatCow) {
+        // Cat-Cow: spine flexes up (Cat) and extends down (Cow)
+        const archY = (cycle - 0.5) * 0.14;
+        lms[11] = { x: 0.41, y: 0.72 - archY * 0.5, z: 0.15, visibility: 0.98 };
+        lms[12] = { x: 0.59, y: 0.72 - archY * 0.5, z: 0.15, visibility: 0.98 };
+        lms[23] = { x: 0.43, y: 0.72 - archY * 0.5, z: -0.25, visibility: 0.98 };
+        lms[24] = { x: 0.57, y: 0.72 - archY * 0.5, z: -0.25, visibility: 0.98 };
+        lms[0]  = { x: 0.50, y: 0.69 + archY * 1.2, z: 0.28, visibility: 0.98 }; // head drops in Cat, lifts in Cow
+
+      } else {
+        // Bird Dog: Opposite arm and leg reach out parallel to floor
+        const reach = cycle * 0.95;
+        const pelvicTwist = isFault ? (cycle * 0.08) : 0;
+
+        lms[11] = { x: 0.41, y: 0.72, z: 0.15, visibility: 0.98 };
+        lms[12] = { x: 0.59, y: 0.72, z: 0.15, visibility: 0.98 };
+        lms[23] = { x: 0.43, y: 0.72 + pelvicTwist, z: -0.25, visibility: 0.98 };
+        lms[24] = { x: 0.57, y: 0.72 - pelvicTwist, z: -0.25, visibility: 0.98 };
+        lms[0]  = { x: 0.50, y: 0.70, z: 0.26, visibility: 0.98 };
+
+        // Right arm extends forward
+        lms[14] = { x: 0.60, y: 0.81 - 0.10 * reach, z: 0.15 + 0.14 * reach, visibility: 0.98 };
+        lms[16] = { x: 0.60, y: 0.90 - 0.20 * reach, z: 0.15 + 0.30 * reach, visibility: 0.98 };
+
+        // Left leg extends backward
+        lms[25] = { x: 0.43, y: 0.90 - 0.16 * reach, z: -0.25 - 0.16 * reach, visibility: 0.98 };
+        lms[27] = { x: 0.43, y: 0.90 - 0.18 * reach, z: -0.48 - 0.20 * reach, visibility: 0.98 };
+      }
+
+    // ─────────────────────────────────────────────────────────────
+    // PATTERN B3: PRONE (MCKENZIE EXTENSION, SUPERMAN, COBRA)
+    // ─────────────────────────────────────────────────────────────
+    } else if (posture === 'prone' || mType === 'prone_extension' || name.includes('mckenzie') || name.includes('cobra') || name.includes('superman')) {
+      const isSuperman = name.includes('superman');
+      const pressRise = isFault ? (0.12 * cycle) : (0.24 * cycle);
+
+      // Pelvis pinned to floor
+      const hipLift = isFault && !isSuperman ? (0.08 * cycle) : 0;
+      lms[23] = { x: 0.44, y: 0.88 - hipLift, z: -0.15, visibility: 0.98 };
+      lms[24] = { x: 0.56, y: 0.88 - hipLift, z: -0.15, visibility: 0.98 };
+
+      // Legs on floor (or lifted in Superman)
+      const legLift = isSuperman ? (0.10 * cycle) : 0;
+      lms[25] = { x: 0.43, y: 0.88 - legLift, z: -0.38, visibility: 0.98 };
+      lms[26] = { x: 0.57, y: 0.88 - legLift, z: -0.38, visibility: 0.98 };
+      lms[27] = { x: 0.43, y: 0.88 - legLift * 1.2, z: -0.60, visibility: 0.98 };
+      lms[28] = { x: 0.57, y: 0.88 - legLift * 1.2, z: -0.60, visibility: 0.98 };
+
+      // Chest and shoulders press upward into lumbar extension
+      lms[11] = { x: 0.42, y: 0.86 - pressRise, z: 0.15 - pressRise * 0.3, visibility: 0.98 };
+      lms[12] = { x: 0.58, y: 0.86 - pressRise, z: 0.15 - pressRise * 0.3, visibility: 0.98 };
+      lms[0]  = { x: 0.50, y: 0.82 - pressRise * 1.2, z: 0.24 - pressRise * 0.3, visibility: 0.98 };
+
+      // Hands remain planted on floor under shoulders
+      lms[15] = { x: 0.38, y: 0.90, z: 0.16, visibility: 0.98 };
+      lms[16] = { x: 0.62, y: 0.90, z: 0.16, visibility: 0.98 };
+      lms[13] = { x: 0.38, y: 0.88 - pressRise * 0.5, z: 0.16, visibility: 0.98 };
+      lms[14] = { x: 0.62, y: 0.88 - pressRise * 0.5, z: 0.16, visibility: 0.98 };
 
     // ─────────────────────────────────────────────────────────────
     // PATTERN C: BENT-OVER ROW / HINGED UPPER BODY
@@ -753,19 +893,29 @@ export class MotionSimulator {
    * Infer motionProfile parameters if an exercise object does not have one
    */
   _inferMotionProfile(customDef) {
-    const name = (customDef?.name || '').toLowerCase();
-    const id = (customDef?.id || '').toLowerCase();
-    const joint = (customDef?.jointLabel || 'KNEE').toUpperCase();
-    const isFlex = customDef?.isFlexion !== false;
-    const target = customDef?.defaultTarget || (isFlex ? 80 : 160);
+    const cd = customDef || {};
+    const name = (cd.name || '').toLowerCase();
+    const id = (cd.id || '').toLowerCase();
+    const joint = (cd.jointLabel || 'KNEE').toUpperCase();
+    const isFlex = cd.isFlexion !== false;
+    const target = cd.defaultTarget || (isFlex ? 80 : 160);
 
-    if (name.includes('push-up') || name.includes('pushup') || id.includes('pushup') || name.includes('press-up')) {
+    if (name.includes('bird dog') || name.includes('cat cow') || name.includes('cat-cow') || id.includes('bird_dog') || id.includes('cat_cow')) {
+      const isCat = name.includes('cat');
+      return { posture: 'quadruped', movementType: isCat ? 'spinal_flexion' : 'quadruped_reach', primaryJoint: 'HIP', startAngle: isCat ? 160 : 120, targetAngle: isCat ? 135 : 175, tempoSpeed: 1.2 };
+    } else if (name.includes('mckenzie') || name.includes('cobra') || name.includes('prone') || name.includes('superman')) {
+      return { posture: 'prone', movementType: 'prone_extension', armPattern: 'chest_push', primaryJoint: 'ELBOW', startAngle: 90, targetAngle: target || 160, tempoSpeed: 1.2 };
+    } else if (name.includes('bridge') || name.includes('thrust') || name.includes('pelvic')) {
+      return { posture: 'supine', movementType: 'bridge', primaryJoint: 'HIP', startAngle: 110, targetAngle: target || 170, tempoSpeed: 1.2 };
+    } else if (name.includes('slr') || name.includes('straight leg')) {
+      return { posture: 'supine', movementType: 'slr', primaryJoint: 'HIP', startAngle: 175, targetAngle: target || 135, tempoSpeed: 1.2 };
+    } else if (name.includes('push-up') || name.includes('pushup') || id.includes('pushup') || name.includes('press-up')) {
       return { posture: 'plank', movementType: 'pushup', armPattern: 'pushup', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: target || 80, tempoSpeed: 1.3 };
     } else if (name.includes('plank') || id.includes('plank')) {
       return { posture: 'plank', movementType: 'plank', armPattern: 'plank', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: 165, tempoSpeed: 1.0 };
     } else if (name.includes('bench') || name.includes('chest press') || name.includes('floor press')) {
       return { posture: 'supine', movementType: 'press_horizontal', armPattern: 'bench_press', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: target || 80, tempoSpeed: 1.3 };
-    } else if (name.includes('row') || name.includes('pull')) {
+    } else if (name.includes('row') || name.includes('pull') && !name.includes('up')) {
       return { posture: 'hinged', movementType: 'row', armPattern: 'row_pull', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: target || 65, tempoSpeed: 1.3 };
     } else if (name.includes('pull-up') || name.includes('pullup') || name.includes('chin-up') || name.includes('chinup')) {
       return { posture: 'standing', movementType: 'pullup', armPattern: 'pullup', primaryJoint: 'ELBOW', startAngle: 165, targetAngle: target || 65, tempoSpeed: 1.3 };

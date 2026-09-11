@@ -4,6 +4,8 @@
  * Maintains conversation history for natural back-and-forth dialogue.
  */
 
+import { synthesizeExerciseFromQuery } from './exercises.js';
+
 export class GeminiCoach {
   constructor() {
     const _d = (s) => (typeof atob === 'function' ? atob(s) : Buffer.from(s, 'base64').toString('utf8'));
@@ -123,7 +125,7 @@ User Question: "${userMessage}"`;
         }
 
         const data = await response.json();
-        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const rawText = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || null;
 
         if (rawText) {
           this.history.push({
@@ -257,7 +259,15 @@ Recent: ${recentReps}`;
    * specification from natural language description, referencing sports science and web exercise catalogs.
    * If the input is unknown or ambiguous, returns smart suggestions.
    */
-  async generateExercise(userPrompt, preferredMode = 'gym') {
+  async generateExercise(userPrompt, preferredMode = 'gym', options = {}) {
+    if (options.instant) {
+      const instantResult = this._generateFallbackExercise(userPrompt, preferredMode);
+      if (instantResult && instantResult.isUnrecognized) {
+        return { success: true, ...instantResult, source: 'instant_synthesizer' };
+      }
+      return { success: true, exercise: instantResult, source: 'instant_synthesizer' };
+    }
+
     const prompt = `You are a world-class sports biomechanist and exercise physiologist for FlexAlign AI.
 Reference global sports science and clinical exercise kinesiology standards (e.g. NSCA, ACSM, ExRx directories).
 
@@ -351,7 +361,7 @@ CRITICAL 3D POSTURE KINEMATICS RULES:
         if (!response.ok) continue;
 
         const data = await response.json();
-        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const rawText = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || null;
         if (rawText) {
           const parsed = this._extractJson(rawText);
           if (parsed) {
@@ -609,7 +619,7 @@ INSTRUCTIONS:
         if (!response.ok) continue;
 
         const data = await response.json();
-        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const rawText = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || null;
         if (rawText) {
           const parsed = this._extractJson(rawText);
           if (parsed && (parsed.id || existingDef.id)) {
@@ -645,12 +655,18 @@ INSTRUCTIONS:
   _generateFallbackExercise(userPrompt, mode = 'gym') {
     const q = (userPrompt || '').toLowerCase().trim();
 
-    // 0. Detect unknown or gibberish non-exercise queries
-    const knownGymTerms = ['deadlift', 'rdl', 'hinge', 'hamstring', 'curl', 'bicep', 'press', 'squat', 'lunge', 'split', 'push-up', 'pushup', 'bench', 'chest', 'wall angel', 'angel', 'scapula', 'calf', 'raise', 'extension', 'row', 'pull', 'dip', 'plank', 'crunch', 'twist', 'ab', 'glute', 'knee', 'shoulder', 'elbow', 'hip', 'quad', 'tricep', 'rehab', 'therapy', 'flexion', 'mobility'];
-    const hasGymTerm = knownGymTerms.some(t => q.includes(t));
+    // Detect gibberish or non-exercise queries
     const isPureGibberish = !/[aeiouy]/i.test(q) || /^[a-z0-9]{1,3}$/i.test(q) || q.includes('flump') || q.includes('asdf') || q.includes('blarp') || q.includes('xyz');
+    const knownGymTerms = [
+      'deadlift', 'rdl', 'hinge', 'hamstring', 'curl', 'bicep', 'press', 'squat', 'lunge', 'split',
+      'push-up', 'pushup', 'bench', 'chest', 'wall angel', 'angel', 'scapula', 'calf', 'raise', 'extension',
+      'row', 'pull', 'dip', 'plank', 'crunch', 'twist', 'ab', 'glute', 'knee', 'shoulder', 'elbow', 'hip',
+      'quad', 'tricep', 'rehab', 'therapy', 'flexion', 'mobility', 'bridge', 'slr', 'quadruped', 'prone',
+      'bird dog', 'cat cow', 'codman', 'pendulum', 'rotator', 'clamshell', 'shrug', 'lat', 'fly', 'step'
+    ];
+    const hasGymTerm = knownGymTerms.some(t => q.includes(t));
 
-    if (!hasGymTerm && (isPureGibberish || q.length < 5 || q.includes('test') || q.includes('random'))) {
+    if (!hasGymTerm && (isPureGibberish || q.length < 4 || q.includes('random noise'))) {
       return {
         isUnrecognized: true,
         query: userPrompt,
@@ -658,347 +674,47 @@ INSTRUCTIONS:
         suggestions: [
           { name: "Romanian Deadlift (RDL)", prompt: "Romanian Deadlift hip hinge with dumbbell or barbell" },
           { name: "Bulgarian Split Squat", prompt: "Bulgarian Split Squat knee flexion and glute drive" },
-          { name: "Standing Overhead Press", prompt: "Standing Overhead Dumbbell Shoulder Press" },
-          { name: "Standard Push-Up", prompt: "Chest to floor push-up with 45-degree elbow tuck" }
+          { name: "Standard Push-Up", prompt: "Chest to floor push-up with 45-degree elbow tuck" },
+          { name: "Bird Dog Reach", prompt: "Bird Dog quadruped reach for spinal stability" },
+          { name: "Glute Bridge", prompt: "Supine glute bridge pelvic extension" }
         ]
       };
     }
 
-    const isPt = mode === 'pt' || q.includes('therapy') || q.includes('rehab') || q.includes('safe') || q.includes('mobility');
-    const assignedMode = isPt ? 'pt' : 'gym';
-
-    // 1. Romanian Deadlift (RDL)
-    if (q.includes('deadlift') || q.includes('rdl') || q.includes('hinge') || q.includes('hamstring')) {
-      return {
-        id: 'gym_rdl',
-        name: 'Romanian Deadlift (RDL)',
-        category: 'Posterior Chain / Hamstrings',
-        mode: assignedMode,
-        jointLabel: 'HIP',
-        jointTitle: 'Hip Hinge Flexion Angle',
-        hudBadge: 'JOINT: HIP (SHOULDER-HIP-KNEE)',
-        targetCriterion: '≤ 75° (Deep Hip Hinge)',
-        lockoutCriterion: '> 165° (Neutral Lockout)',
-        defaultTarget: 75,
-        isFlexion: true,
-        repFooter: 'Stand ➔ Push Hips Back ➔ Drive Glutes',
-        tip: '⚡ <strong>RDL Hinge:</strong> Keep a soft knee bend and push hips straight back. Keep barbell or dumbbells skimming thighs with neutral cervical spine.',
-        faultMessage: '⚠️ Form Fault: Spine Rounding or Excessive Knee Bend! Push Hips Backward',
-        faultCriteria: { torsoLeanThreshold: 45, kneeBendThreshold: 140 },
-        motionProfile: {
-          movementType: 'hinge_deadlift',
-          posture: 'standing',
-          tempoSpeed: 1.3,
-          primaryJoint: 'HIP',
-          startAngle: 175,
-          targetAngle: 75,
-          faultAngle: 105,
-          faultType: 'lean',
-          torsoLean: 35,
-          faultTorsoLean: 55,
-          hipDropY: 0.08,
-          hipHingeZ: -0.24,
-          kneeBendDeg: 20,
-          armPattern: 'stationary'
-        },
-        isCustom: true
-      };
+    const synthesized = synthesizeExerciseFromQuery(userPrompt, mode);
+    if (synthesized) {
+      return synthesized;
     }
 
-    // 2. Bicep Curl
-    if (q.includes('curl') || q.includes('bicep') || q.includes('arm flexion')) {
-      return {
-        id: 'gym_bicep_curl_custom',
-        name: 'Dumbbell Bicep Curl',
-        category: 'Upper Body / Biceps',
-        mode: assignedMode,
-        jointLabel: 'ELBOW',
-        jointTitle: 'Elbow Joint Flexion',
-        hudBadge: 'JOINT: ELBOW (SHOULDER-ELBOW-WRIST)',
-        targetCriterion: '≤ 45° (Peak Flexion)',
-        lockoutCriterion: '> 155° (Full Extension)',
-        defaultTarget: 45,
-        isFlexion: true,
-        repFooter: 'Extension ➔ Curl ➔ Extension',
-        tip: '💪 <strong>Bicep Curl:</strong> Pin elbows against ribcage. Curl forearm upward without swinging shoulders or leaning back.',
-        faultMessage: '⚠️ Form Fault: Upper Arm Sway or Torso Momentum!',
-        faultCriteria: { torsoLeanThreshold: 20, lateralDriftThreshold: 0.25 },
-        motionProfile: {
-          movementType: 'curl',
-          posture: 'standing',
-          tempoSpeed: 1.4,
-          primaryJoint: 'ELBOW',
-          startAngle: 165,
-          targetAngle: 40,
-          faultAngle: 85,
-          faultType: 'sway',
-          torsoLean: 0,
-          faultTorsoLean: 24,
-          hipDropY: 0.0,
-          hipHingeZ: 0.0,
-          armPattern: 'bicep_curl'
-        },
-        isCustom: true
-      };
-    }
-
-    // 3. Overhead Shoulder Press
-    if (q.includes('overhead') || q.includes('shoulder press') || q.includes('military press')) {
-      return {
-        id: 'gym_overhead_press_custom',
-        name: 'Dumbbell Overhead Press',
-        category: 'Upper Body / Shoulders',
-        mode: assignedMode,
-        jointLabel: 'ELBOW',
-        jointTitle: 'Overhead Elbow Lockout',
-        hudBadge: 'JOINT: ELBOW (SHOULDER-ELBOW-WRIST)',
-        targetCriterion: '≥ 165° (Full Lockout)',
-        lockoutCriterion: '< 90° (Return to Rack)',
-        defaultTarget: 165,
-        isFlexion: false,
-        repFooter: 'Rack ➔ Overhead Lockout ➔ Return',
-        tip: '⚡ <strong>Overhead Press:</strong> Lock out elbows directly overhead with ribs pulled down. Avoid hyperextending lumbar spine.',
-        faultMessage: '⚠️ Form Fault: Lumbar Spine Arching or Torso Hyperextension!',
-        faultCriteria: { torsoLeanThreshold: 18 },
-        motionProfile: {
-          movementType: 'press_overhead',
-          posture: 'standing',
-          tempoSpeed: 1.3,
-          primaryJoint: 'ELBOW',
-          startAngle: 80,
-          targetAngle: 168,
-          faultAngle: 135,
-          faultType: 'lean',
-          torsoLean: 0,
-          faultTorsoLean: 22,
-          hipDropY: 0.0,
-          hipHingeZ: 0.12,
-          armPattern: 'overhead_press'
-        },
-        isCustom: true
-      };
-    }
-
-    // 4. Lateral Raise (PT or Gym)
-    if (q.includes('lateral raise') || q.includes('side raise') || q.includes('deltoid raise')) {
-      return {
-        id: 'pt_lateral_raise_custom',
-        name: 'Shoulder Lateral Raise',
-        category: 'Deltoid / Impingement Rehab',
-        mode: assignedMode,
-        jointLabel: 'SHOULDER',
-        jointTitle: 'Shoulder Abduction Angle',
-        hudBadge: 'JOINT: SHOULDER (HIP-SHOULDER-ELBOW)',
-        targetCriterion: '≥ 85° (Parallel Abduction)',
-        lockoutCriterion: '< 25° (Neutral Return)',
-        defaultTarget: 85,
-        sliderLabel: 'Safe Abduction Ceiling:',
-        ptSliderMin: 70,
-        ptSliderMax: 120,
-        defaultSafeThreshold: 100,
-        isFlexion: false,
-        repFooter: 'Neutral ➔ 85° Abduction ➔ Return',
-        tip: '💡 <strong>Lateral Raise:</strong> Raise arms smoothly in the scapular plane up to shoulder height. Guard against shrugging traps.',
-        faultMessage: '⚠️ Form Fault: Trapezius Shrug or Elevation Past Safe Ceiling!',
-        faultCriteria: { safeCeiling: 105, torsoLeanThreshold: 15 },
-        motionProfile: {
-          movementType: 'lateral_raise',
-          posture: 'standing',
-          tempoSpeed: 1.2,
-          primaryJoint: 'SHOULDER',
-          startAngle: 18,
-          targetAngle: 85,
-          faultAngle: 122,
-          faultType: 'flare',
-          torsoLean: 0,
-          faultTorsoLean: 15,
-          hipDropY: 0.0,
-          hipHingeZ: 0.0,
-          armPattern: 'lateral_raise'
-        },
-        isCustom: true
-      };
-    }
-
-    // 5. Bulgarian Split Squat / Lunges
-    if (q.includes('split squat') || q.includes('bulgarian') || q.includes('lunge') || q.includes('single leg')) {
-      return {
-        id: 'gym_split_squat',
-        name: 'Bulgarian Split Squat',
-        category: 'Unilateral Quads & Glutes',
-        mode: assignedMode,
-        jointLabel: 'KNEE',
-        jointTitle: 'Lead Knee Flexion Angle',
-        hudBadge: 'JOINT: KNEE (HIP-KNEE-ANKLE)',
-        targetCriterion: '≤ 85° (Full Single-Leg Depth)',
-        lockoutCriterion: '> 160° (Full Extension)',
-        defaultTarget: 85,
-        isFlexion: true,
-        repFooter: 'Upright Setup ➔ 90° Knee Drop ➔ Drive Lead Foot',
-        tip: '⚡ <strong>Split Squat:</strong> Lower rear knee toward ground while keeping lead shin nearly vertical. Maintain square pelvis and upright chest.',
-        faultMessage: '⚠️ Form Fault: Lead Knee Valgus Collapse or Forward Torso Collapse!',
-        faultCriteria: { valgusThreshold: 0.04, torsoLeanThreshold: 28 },
-        motionProfile: {
-          movementType: 'lunge',
-          posture: 'standing',
-          tempoSpeed: 1.4,
-          primaryJoint: 'KNEE',
-          startAngle: 170,
-          targetAngle: 85,
-          faultAngle: 115,
-          faultType: 'valgus',
-          torsoLean: 5,
-          faultTorsoLean: 28,
-          hipDropY: 0.22,
-          hipHingeZ: -0.06,
-          armPattern: 'counterbalance'
-        },
-        isCustom: true
-      };
-    }
-
-    // 6. Push-Up / Floor Press
-    if (q.includes('push-up') || q.includes('pushup') || q.includes('press-up') || q.includes('chest press') || q.includes('bench')) {
-      return {
-        id: 'gym_pushup',
-        name: 'Standard Push-Up',
-        category: 'Upper Body / Pectorals & Triceps',
-        mode: assignedMode,
-        jointLabel: 'ELBOW',
-        jointTitle: 'Elbow Flexion Depth',
-        hudBadge: 'JOINT: ELBOW (SHOULDER-ELBOW-WRIST)',
-        targetCriterion: '≤ 85° (Chest to Floor)',
-        lockoutCriterion: '> 165° (High Plank Lockout)',
-        defaultTarget: 85,
-        isFlexion: true,
-        repFooter: 'High Plank ➔ 90° Elbow Depth ➔ Push Away',
-        tip: '💪 <strong>Push-Up Kinematics:</strong> Tuck elbows 45° relative to torso. Maintain rigid plank line from shoulders through ankles without sagging hips.',
-        faultMessage: '⚠️ Form Fault: Excessive Elbow Flare (> 70°) or Sagging Hip Core Breakdown!',
-        faultCriteria: { flareThreshold: 0.28, hipSagThreshold: 15 },
-        motionProfile: {
-          movementType: 'pushup',
-          posture: 'plank',
-          tempoSpeed: 1.3,
-          primaryJoint: 'ELBOW',
-          startAngle: 165,
-          targetAngle: 80,
-          faultAngle: 110,
-          faultType: 'flare',
-          torsoLean: 0,
-          faultTorsoLean: 18,
-          hipDropY: 0.0,
-          hipHingeZ: 0.0,
-          armPattern: 'pushup'
-        },
-        isCustom: true
-      };
-    }
-
-    // 7. Wall Angels / Scapular Mobility (PT)
-    if (q.includes('wall angel') || q.includes('angel') || q.includes('scapula') || q.includes('posture') || q.includes('thoracic')) {
-      return {
-        id: 'pt_wall_angels',
-        name: 'Wall Angels (Scapular Retraction)',
-        category: 'Scapulothoracic Rehab & Mobility',
-        mode: 'pt',
-        jointLabel: 'SHOULDER',
-        jointTitle: 'Shoulder Abduction Arc',
-        hudBadge: 'JOINT: SHOULDER (HIP-SHOULDER-ELBOW)',
-        targetCriterion: '≥ 150° (Overhead Reach)',
-        lockoutCriterion: '< 85° (Starting W-Position)',
-        defaultTarget: 150,
-        sliderLabel: 'Safe Abduction Arc:',
-        ptSliderMin: 90,
-        ptSliderMax: 175,
-        defaultSafeThreshold: 155,
-        isFlexion: false,
-        repFooter: 'W-Retraction ➔ Overhead Reach ➔ Controlled Descent',
-        tip: '💡 <strong>Wall Angels Protocol:</strong> Keep forearms, wrists, and lumbar spine in flush contact with wall. Slide upwards slowly.',
-        faultMessage: '⚠️ Form Warning: Lumbar Hyperextension or Wrists Detaching From Plane!',
-        faultCriteria: { safeCeiling: 160 },
-        motionProfile: {
-          movementType: 'lateral_raise',
-          posture: 'standing',
-          tempoSpeed: 1.1,
-          primaryJoint: 'SHOULDER',
-          startAngle: 65,
-          targetAngle: 150,
-          faultAngle: 175,
-          faultType: 'flare',
-          torsoLean: 0,
-          faultTorsoLean: 15,
-          hipDropY: 0.0,
-          hipHingeZ: 0.0,
-          armPattern: 'lateral_raise'
-        },
-        isCustom: true
-      };
-    }
-
-    // 8. Standing Calf Raise
-    if (q.includes('calf') || q.includes('ankle') || q.includes('plantarflex')) {
-      return {
-        id: 'gym_calf_raise',
-        name: 'Standing Calf Raise',
-        category: 'Lower Body / Gastrocnemius',
-        mode: assignedMode,
-        jointLabel: 'KNEE',
-        jointTitle: 'Knee & Ankle Extension',
-        hudBadge: 'JOINT: KNEE (HIP-KNEE-ANKLE)',
-        targetCriterion: '≥ 175° (Peak Elevation)',
-        lockoutCriterion: '< 165° (Full Foot Contact)',
-        defaultTarget: 175,
-        isFlexion: false,
-        repFooter: 'Planted ➔ Drive Balls of Feet ➔ Lower',
-        tip: '⚡ <strong>Calf Raise:</strong> Push straight up through big toes. Pause at peak contraction without knee bend or rocking.',
-        faultMessage: '⚠️ Form Fault: Knee Buckle or Forward Hip Sway!',
-        faultCriteria: { torsoLeanThreshold: 15 },
-        motionProfile: {
-          movementType: 'calf_raise',
-          posture: 'standing',
-          tempoSpeed: 1.2,
-          primaryJoint: 'KNEE',
-          startAngle: 160,
-          targetAngle: 180,
-          faultAngle: 165,
-          faultType: 'sway',
-          torsoLean: 0,
-          faultTorsoLean: 16,
-          hipDropY: 0.0,
-          hipHingeZ: 0.0,
-          armPattern: 'stationary'
-        },
-        isCustom: true
-      };
-    }
-
-    // 9. Generic / Custom Fallback based on text
-    const cleanName = userPrompt.replace(/add|create|exercise|new|make/gi, '').trim();
-    const titleName = cleanName ? (cleanName.charAt(0).toUpperCase() + cleanName.slice(1)) : 'Custom Biomechanical Movement';
-    const genId = 'custom_' + titleName.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 16);
-    const inferredJoint = q.includes('shoulder') ? 'SHOULDER' : (q.includes('elbow') || q.includes('arm') ? 'ELBOW' : (q.includes('hip') || q.includes('back') ? 'HIP' : 'KNEE'));
-    const isFlex = !(q.includes('extension') || q.includes('raise') || q.includes('press'));
-
-    const baseObj = {
-      id: genId,
-      name: titleName,
-      category: assignedMode === 'pt' ? 'Clinical Rehabilitation' : 'Targeted Kinematics',
-      mode: assignedMode,
-      jointLabel: inferredJoint,
-      jointTitle: `${titleName} ${inferredJoint} Excursion`,
-      hudBadge: `JOINT: ${inferredJoint} (ACTIVE VERTEX)`,
-      targetCriterion: isFlex ? '≤ 85° (Target Depth)' : '≥ 160° (Full Lockout)',
-      lockoutCriterion: isFlex ? '> 160° (Full Extension)' : '< 90° (Neutral Return)',
-      defaultTarget: isFlex ? 85 : 160,
-      isFlexion: isFlex,
-      repFooter: 'Starting Position ➔ Target Excursion ➔ Controlled Return',
-      tip: `⚡ <strong>${titleName}:</strong> Maintain steady tempo, control eccentric descent, and stabilize secondary joints.`,
-      faultMessage: '⚠️ Biomechanical Misalignment Detected: Stabilize Active Kinetic Chain!',
+    // Safety default
+    return {
+      id: 'custom_movement_' + Date.now(),
+      name: userPrompt.charAt(0).toUpperCase() + userPrompt.slice(1),
+      category: mode === 'pt' ? 'Physical Therapy Rehab' : 'Athletic Kinematics',
+      mode,
+      jointLabel: 'KNEE',
+      jointTitle: 'Knee Joint Excursion',
+      hudBadge: 'JOINT: KNEE (HIP-KNEE-ANKLE)',
+      targetCriterion: '≤ 90° (Target Depth)',
+      lockoutCriterion: '> 160° (Lockout)',
+      defaultTarget: 90,
+      isFlexion: true,
+      repFooter: 'Start ➔ Peak ➔ Return',
+      tip: '⚡ <strong>Form Standard:</strong> Execute with smooth cadence and stable joint stacking.',
+      faultMessage: '⚠️ Form Fault: Biomechanical compensation detected!',
       faultCriteria: { torsoLeanThreshold: 25 },
+      motionProfile: {
+        posture: 'standing',
+        movementType: 'squat',
+        primaryJoint: 'KNEE',
+        startAngle: 175,
+        targetAngle: 90,
+        faultAngle: 120,
+        faultType: 'valgus',
+        tempoSpeed: 1.3
+      },
       isCustom: true
     };
-    baseObj.motionProfile = this._inferMotionProfileFromExercise(baseObj);
-    return baseObj;
   }
 
   _modifyExerciseHeuristic(existingDef, userInstruction) {

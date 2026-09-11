@@ -7,7 +7,7 @@
  */
 
 import { AudioEngine } from './audio.js';
-import { GYM_EXERCISES, PT_EXERCISES, registerExercise, modifyExerciseDefinition, getExerciseDefinition, getAllExercisesForMode, CUSTOM_EXERCISES } from './exercises.js';
+import { GYM_EXERCISES, PT_EXERCISES, registerExercise, modifyExerciseDefinition, getExerciseDefinition, getAllExercisesForMode, CUSTOM_EXERCISES, synthesizeExerciseFromQuery } from './exercises.js';
 import { ExerciseEvaluator } from './evaluator.js';
 import { HUDRenderer } from './renderer.js';
 import { WaveformChart } from './waveform.js';
@@ -1856,6 +1856,31 @@ export class FlexAlignApp {
         prompt: 'Walking Lunges: Dynamic unilateral knee flexion to 90° with upright posture and controlled deceleration.',
         joint: 'KNEE',
         mode: 'gym'
+      },
+      bird_dog: {
+        prompt: 'Bird Dog Quadruped Reach: Lumbar core stabilization (McGill Big 3). Reach opposite arm and leg parallel to floor without pelvic twist.',
+        joint: 'HIP',
+        mode: 'pt'
+      },
+      cat_cow: {
+        prompt: 'Cat-Cow Spinal Segmentation: Cervical, thoracic, and lumbar segmentation arc from all-fours.',
+        joint: 'HIP',
+        mode: 'pt'
+      },
+      glute_bridge: {
+        prompt: 'Glute Bridge: Supine hip extension driving through heels to 175° lockout with glute contraction.',
+        joint: 'HIP',
+        mode: 'pt'
+      },
+      mckenzie: {
+        prompt: 'McKenzie Extension Press-Up: Prone lumbar spine decompression press-up while keeping pelvis pinned to floor.',
+        joint: 'ELBOW',
+        mode: 'pt'
+      },
+      row: {
+        prompt: 'Bent-Over Barbell Row: 45° hinged torso pulling elbows past ribcage with scapular retraction.',
+        joint: 'ELBOW',
+        mode: 'gym'
       }
     };
 
@@ -1899,6 +1924,34 @@ export class FlexAlignApp {
     const selectedMode = modeSelect ? modeSelect.value : 'gym';
     const selectedJoint = jointSelect ? jointSelect.value : 'AUTO';
 
+    // ─────────────────────────────────────────────────────────────
+    // FAST PATH: Instant 0ms Synthesis for "Add" tab
+    // Enables any exercise input to immediately produce 3D motion without network lag!
+    // ─────────────────────────────────────────────────────────────
+    if (this.aiLabTab === 'add') {
+      const instantEx = synthesizeExerciseFromQuery(userPrompt, selectedMode);
+      if (instantEx) {
+        if (selectedJoint !== 'AUTO') {
+          instantEx.jointLabel = selectedJoint;
+        }
+        instantEx.mode = selectedMode;
+        this.currentGeneratedExercise = instantEx;
+        registerExercise(instantEx);
+        this.renderAiExercisePreview(instantEx);
+
+        const suggestionsCard = document.getElementById('aiExerciseSuggestionsCard');
+        if (suggestionsCard) suggestionsCard.style.display = 'none';
+
+        if (this.audio) this.audio.playRepSuccess();
+        this.showToast(`AI Lab: "${instantEx.name}" ready instantly! ⚡`, '🚀');
+
+        if (submitBtn) submitBtn.classList.remove('loading');
+        if (submitIcon) submitIcon.textContent = '⚡';
+        if (submitText) submitText.textContent = 'Generate with Gemini';
+        return;
+      }
+    }
+
     // Loading State
     if (submitBtn) submitBtn.classList.add('loading');
     if (submitIcon) submitIcon.textContent = '⏳';
@@ -1934,7 +1987,8 @@ export class FlexAlignApp {
             : [
                 { name: 'Romanian Deadlift (RDL)', prompt: 'Romanian Deadlift hip hinge with dumbbell or barbell' },
                 { name: 'Bulgarian Split Squat', prompt: 'Bulgarian Split Squat knee flexion and glute drive' },
-                { name: 'Overhead Shoulder Press', prompt: 'Standing Overhead Dumbbell Shoulder Press' }
+                { name: 'Standard Push-Up', prompt: 'Standard Push-Up chest to floor with 45-degree elbow tuck' },
+                { name: 'Bird Dog Reach', prompt: 'Bird Dog quadruped reach for lumbar spine stabilization' }
               ];
 
           suggestions.forEach(s => {
@@ -1969,8 +2023,9 @@ export class FlexAlignApp {
         ex.mode = selectedMode;
 
         this.currentGeneratedExercise = ex;
+        registerExercise(ex);
         this.renderAiExercisePreview(ex);
-        this.showToast(`AI Lab: "${ex.name}" created successfully! ✨`, '🚀');
+        this.showToast(`AI Lab: "${ex.name}" updated successfully! ✨`, '🚀');
 
         if (this.audio) this.audio.playRepSuccess();
       } else {
