@@ -3,54 +3,75 @@
    Inspired by Apple Health / Google Material You
    ═══════════════════════════════════════════════════════════════ */
 
-:root {
-  /* Surface & Background */
-  --bg-base: #0c0f1a;
-  --bg-elevated: rgba(22, 28, 45, 0.72);
-  --bg-elevated-solid: #161c2d;
+/* ── Theme: Gym Mode (Energetic, High-Contrast) ──────────────── */
+.theme-gym {
+  --bg-base: #0a0c16;
+  --bg-elevated: rgba(20, 24, 38, 0.72);
+  --bg-elevated-solid: #141826;
   --bg-inset: rgba(12, 15, 26, 0.85);
   --bg-hover: rgba(255, 255, 255, 0.04);
 
-  /* Border */
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-default: rgba(255, 255, 255, 0.1);
   --border-focus: rgba(91, 156, 246, 0.5);
 
-  /* Primary Palette */
-  --primary: #5b9cf6;
-  --primary-soft: rgba(91, 156, 246, 0.15);
-  --primary-glow: rgba(91, 156, 246, 0.2);
-
-  /* Semantic */
-  --success: #34d399;
+  --primary: #3b82f6; /* Electric Blue */
+  --primary-soft: rgba(59, 130, 246, 0.15);
+  --primary-glow: rgba(59, 130, 246, 0.25);
+  
+  --success: #34d399; /* Mint */
   --success-soft: rgba(52, 211, 153, 0.12);
-  --error: #f87171;
-  --error-soft: rgba(248, 113, 113, 0.12);
+  --error: #f97316;   /* Fiery Orange */
+  --error-soft: rgba(249, 115, 22, 0.15);
   --warning: #fbbf24;
   --warning-soft: rgba(251, 191, 36, 0.12);
-  --info: #60a5fa;
 
-  /* Gym / PT Accents */
-  --gym-accent: #60a5fa;
-  --gym-accent-soft: rgba(96, 165, 250, 0.12);
-  --pt-accent: #34d399;
-  --pt-accent-soft: rgba(52, 211, 153, 0.12);
-  --pt-glow: rgba(52, 211, 153, 0.2);
+  --gym-accent: #3b82f6;
+  --pt-accent: #10b981;
 
-  /* Legacy compat aliases */
-  --optimal: #34d399;
-  --optimal-glow: rgba(52, 211, 153, 0.25);
-  --fault: #f87171;
-  --fault-glow: rgba(248, 113, 113, 0.25);
-
-  /* Text */
   --text-primary: #ffffff;
-  --text-secondary: #a1a1b5;
-  --text-tertiary: #6b6b80;
-  --text-main: #ffffff;
-  --text-muted: #a1a1b5;
-  --text-dim: #6b6b80;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  
+  --bg-gradient-1: rgba(59, 130, 246, 0.08);
+  --bg-gradient-2: rgba(249, 115, 22, 0.04);
+}
 
+/* ── Theme: Therapy Mode (Calming, Clinical) ───────────────── */
+.theme-pt {
+  --bg-base: #0d1218;
+  --bg-elevated: rgba(24, 32, 42, 0.72);
+  --bg-elevated-solid: #18202a;
+  --bg-inset: rgba(16, 22, 30, 0.85);
+  --bg-hover: rgba(255, 255, 255, 0.05);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.12);
+  --border-focus: rgba(20, 184, 166, 0.5);
+
+  --primary: #14b8a6; /* Teal */
+  --primary-soft: rgba(20, 184, 166, 0.15);
+  --primary-glow: rgba(20, 184, 166, 0.25);
+  
+  --success: #10b981; /* Soft Mint */
+  --success-soft: rgba(16, 185, 129, 0.12);
+  --error: #f43f5e;   /* Soft Rose */
+  --error-soft: rgba(244, 63, 94, 0.15);
+  --warning: #facc15;
+  --warning-soft: rgba(250, 204, 21, 0.12);
+
+  --gym-accent: #3b82f6;
+  --pt-accent: #14b8a6;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
+
+  --bg-gradient-1: rgba(20, 184, 166, 0.06);
+  --bg-gradient-2: rgba(16, 185, 129, 0.04);
+}
+
+:root {
   /* Typography */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
@@ -89,8 +110,8 @@
 body {
   background-color: var(--bg-base);
   background-image:
-    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(91, 156, 246, 0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(52, 211, 153, 0.04) 0%, transparent 50%);
+    radial-gradient(ellipse 80% 60% at 50% 0%, var(--bg-gradient-1) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, var(--bg-gradient-2) 0%, transparent 50%);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: 15px;
@@ -99,6 +120,7 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--duration-slow) var(--ease-out), color var(--duration-slow) ease;
 }
 
 /* ── Container Layout ──────────────────────────────────────── */
@@ -158,7 +180,8 @@ body {
 }
 
 .btn-primary:hover {
-  background: #6faaff;
+  background: var(--primary);
+  filter: brightness(1.15);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
 }
@@ -255,6 +278,7 @@ body {
   gap: 20px;
   font-size: 0.78rem;
   color: var(--text-tertiary);
+  transition: background-color var(--duration-slow) var(--ease-out), border-color var(--duration-slow) var(--ease-out);
 }
 
 .legend-item {
@@ -279,8 +303,8 @@ body {
 .toast-banner {
   position: fixed;
   bottom: 24px;
-  right: 24px;
-  z-index: 200;
+  left: 24px;
+  z-index: 9995;
   background: var(--bg-elevated-solid);
   backdrop-filter: saturate(180%) blur(20px);
   border: 1px solid var(--border-default);
@@ -295,10 +319,12 @@ body {
   color: var(--text-primary);
   transform: translateY(120px);
   opacity: 0;
+  pointer-events: none;
   transition: transform var(--duration-slow) var(--ease-spring), opacity var(--duration-normal) ease;
 }
 
 .toast-banner.show {
   transform: translateY(0);
   opacity: 1;
+  pointer-events: auto;
 }

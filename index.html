@@ -1,23 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FlexAlign AI — Dual-Mode Posture & Range of Motion Analyzer</title>
-  <meta name="description" content="FlexAlign AI is a clinical & athletic grade exercise posture and Range-of-Motion (ROM) analyzer powered by MediaPipe Pose, real-time vector trigonometry, dynamic visual telemetry, and dual Gym / Physical Therapy intelligence.">
+  <title>FlexAlign AI — Posture & ROM Analyzer</title>
+  <meta name="description"
+    content="FlexAlign AI is a clinical & athletic-grade exercise posture and Range-of-Motion analyzer powered by MediaPipe Pose with real-time visual telemetry.">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
+    rel="stylesheet">
 
-  <!-- Modular CSS Component Stylesheets -->
+  <!-- Modular CSS -->
   <link rel="stylesheet" href="./css/main.css">
   <link rel="stylesheet" href="./css/header.css">
   <link rel="stylesheet" href="./css/viewport.css">
   <link rel="stylesheet" href="./css/dashboard.css">
 
-  <!-- Three.js Import Map (ES Module — works with type="module" scripts) -->
+  <!-- Three.js Import Map -->
   <script type="importmap">
   {
     "imports": {
@@ -27,327 +31,700 @@
   }
   </script>
 
-  <!-- MediaPipe Pose CDN Scripts -->
+  <!-- MediaPipe Pose CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  <!-- Early Controller Bridge to guarantee immediate button responsiveness -->
+  <script>
+    window.app = {
+      _queue: [],
+      setMode: function (m) { this._forward('setMode', [m]); },
+      setExercise: function (e) { this._forward('setExercise', [e]); },
+      setSide: function (s) { this._forward('setSide', [s]); },
+      startCamera: function () { this._forward('startCamera', []); },
+      stopStreams: function () { this._forward('stopStreams', []); },
+      startSimulation: function () { this._forward('startSimulation', []); },
+      toggleSimulation: function () { this._forward('toggleSimulation', []); },
+      toggleSimFault: function () { this._forward('toggleSimFault', []); },
+      resetSession: function () { this._forward('resetSession', []); },
+      exportData: function () { this._forward('exportData', []); },
+      setDashboardTab: function (t) { this._forward('setDashboardTab', [t]); },
+      sendChatMessage: function (msg) { this._forward('sendChatMessage', [msg]); },
+      requestAutoAnalysis: function () { this._forward('requestAutoAnalysis', []); },
+      toggleVoice: function () { this._forward('toggleVoice', []); },
+      clearChat: function () { this._forward('clearChat', []); },
+      toggleCoachSection: function () { this._forward('toggleCoachDrawer', []); },
+      toggleCoachDrawer: function (f) { this._forward('toggleCoachDrawer', [f]); },
+      openCoachDrawer: function () { this._forward('openCoachDrawer', []); },
+      closeCoachDrawer: function () { this._forward('closeCoachDrawer', []); },
+      dismissCoachTip: function (ev) { this._forward('dismissCoachTip', [ev]); },
+      toggleVoiceWake: function () { this._forward('toggleVoiceWake', []); },
+      toggleSound: function () { this._forward('toggleSound', []); },
+      handleVideoUpload: function (ev) { this._forward('handleVideoUpload', [ev]); },
+      updateSafeThreshold: function (val) { this._forward('updateSafeThreshold', [val]); },
+      openAiExerciseModal: function () { this._forward('openAiExerciseModal', []); },
+      closeAiExerciseModal: function () { this._forward('closeAiExerciseModal', []); },
+      setAiLabTab: function (tab) { this._forward('setAiLabTab', [tab]); },
+      applyAiPreset: function (preset) { this._forward('applyAiPreset', [preset]); },
+      generateOrModifyAiExercise: function () { this._forward('generateOrModifyAiExercise', []); },
+      launchGeneratedExercise: function () { this._forward('launchGeneratedExercise', []); },
+      _forward: function (fn, args) {
+        if (window._realApp && typeof window._realApp[fn] === 'function') {
+          window._realApp[fn].apply(window._realApp, args);
+        } else {
+          this._queue.push({ fn, args });
+        }
+      }
+    };
+  </script>
 </head>
-<body>
+
+<body class="theme-gym">
 
   <div class="app-container">
 
-    <!-- Top Navigation & Prominent Dual-Mode Switcher -->
+    <!-- Top Navigation -->
     <header class="top-bar">
       <div class="brand-section">
-        <div class="brand-logo">📐</div>
+        <div class="brand-logo">⚡</div>
         <div class="brand-title-wrap">
           <h1>FlexAlign AI</h1>
-          <div class="brand-tagline">Dual-Mode Posture & Range-of-Motion (ROM) Telemetry</div>
+          <div class="brand-tagline">Posture & Range-of-Motion Analysis</div>
         </div>
       </div>
 
-      <!-- Prominent Dual Mode Selector -->
+      <!-- Dual Mode Selector -->
       <div class="mode-selector-container" role="radiogroup" aria-label="Mode Selector">
         <button id="gymModeBtn" class="mode-btn active gym-mode" onclick="window.app.setMode('gym')">
-          <span>🏋️</span> Fitness / Gym Mode
+          <span>🏋️</span> Gym Mode
         </button>
         <button id="ptModeBtn" class="mode-btn pt-mode" onclick="window.app.setMode('pt')">
-          <span>🩺</span> Physical Therapy Mode
+          <span>🩺</span> Therapy Mode
         </button>
       </div>
 
-      <!-- Quick Audio & Voice Feedback Toggles -->
+      <!-- Top Controls -->
       <div class="top-controls">
-        <button id="soundToggleBtn" class="icon-toggle-btn active" onclick="window.app.toggleSound()" title="Toggle Web Audio Synths">
-          <span id="soundIcon">🔊</span> Audio FX
+        <button id="voiceWakeBtn" class="voice-wake-nav-btn active" title="Talk to AI Coach (Voice Wake / Push-to-Talk)">
+          <span class="voice-mic-wave">🎙️</span>
+          <span class="voice-wake-label">"Hey Coach"</span>
         </button>
-        <button id="voiceToggleBtn" class="icon-toggle-btn active" onclick="window.app.toggleVoice()" title="Toggle Spoken Guidance">
-          <span id="voiceIcon">🗣️</span> Voice Coach
+        <button id="aiCoachNavBtn" class="ai-coach-nav-btn" title="Open Dedicated AI Coach">
+          <span class="ai-sparkle-dot">✨</span>
+          <span class="ai-nav-label">AI Coach</span>
+          <span class="ai-nav-badge">PRO</span>
+        </button>
+        <button id="soundToggleBtn" class="icon-toggle-btn active" onclick="window.app.toggleSound()"
+          title="Toggle Audio Effects">
+          <span id="soundIcon">🔊</span> Audio
         </button>
       </div>
     </header>
 
-    <!-- Main Telemetry Grid -->
+    <!-- Main Grid -->
     <main class="main-grid">
 
-      <!-- Left / Center Viewport & Visual Telemetry HUD -->
+      <!-- Viewport Section -->
       <section class="viewport-card">
         <div class="viewport-header">
           <div class="exercise-selector-wrap">
-            <label for="exerciseSelect">Exercise:</label>
+            <label for="exerciseSelect">Exercise</label>
             <select id="exerciseSelect" class="exercise-select" onchange="window.app.setExercise(this.value)">
-              <option value="squat">🏋️ Bodyweight Squat (Lower Body / Mobility)</option>
-              <option value="curl">💪 Bicep Curl (Upper Body / Strength)</option>
-              <option value="raise">🦅 Shoulder Lateral Raise (Rehab / Mobility)</option>
+              <!-- Options populated dynamically by app.js based on mode -->
             </select>
           </div>
 
-          <!-- Side Tracking Controls -->
           <div class="side-selector-wrap" title="Select limb side to analyze">
-            <span style="font-size: 0.72rem; color: var(--text-dim); padding-left: 4px; font-weight: 700;">SIDE:</span>
+            <span
+              style="font-size: 0.7rem; color: var(--text-tertiary); padding-left: 6px; font-weight: 600;">SIDE</span>
             <button id="sideAuto" class="side-chip active" onclick="window.app.setSide('auto')">Auto</button>
             <button id="sideLeft" class="side-chip" onclick="window.app.setSide('left')">Left</button>
             <button id="sideRight" class="side-chip" onclick="window.app.setSide('right')">Right</button>
           </div>
         </div>
 
-        <!-- Canvas Video Viewport -->
+        <!-- Camera Viewport -->
         <div class="canvas-viewport" id="viewportContainer">
-          <!-- Raw Video Element -->
           <video id="webcamVideo" playsinline muted></video>
-          <!-- HUD & Landmark Drawing Canvas (2D skeleton overlay) -->
           <canvas id="outputCanvas"></canvas>
-          <!-- 3D WebGL Avatar Canvas (shown only in simulation mode) -->
-          <canvas id="avatarCanvas3D" title="3D Avatar — Click & Drag to Rotate"></canvas>
+          <canvas id="avatarCanvas3D" class="avatar-canvas-3d"></canvas>
 
-          <!-- Cyberpunk / Clinical HUD Reticles -->
+          <!-- Corner Brackets -->
           <div class="hud-corner hud-tl"></div>
           <div class="hud-corner hud-tr"></div>
           <div class="hud-corner hud-bl"></div>
           <div class="hud-corner hud-br"></div>
 
-          <!-- HUD Header Status -->
+          <!-- Status Bar -->
           <div class="hud-status-bar">
             <div class="hud-badge">
               <div id="hudLiveDot" class="hud-live-dot"></div>
-              <span id="hudTrackingText">SYSTEM STANDBY</span>
+              <span id="hudTrackingText">STANDBY</span>
             </div>
             <div class="hud-badge" id="hudActiveJointBadge">
-              JOINT: KNEE (HIP-KNEE-ANKLE)
+              KNEE · HIP-KNEE-ANKLE
             </div>
           </div>
 
-          <!-- On-screen Live Guidance Notification Banner -->
-          <div id="hudGuidanceBanner" class="hud-guidance-banner optimal">
-            <span id="hudGuidanceIcon">✨</span>
-            <span id="hudGuidanceText">Ready to start tracking</span>
+          <!-- High-Visibility Guidance Banner (Top Coach Note - Never blocks splash or controls) -->
+          <div id="hudGuidanceBanner" class="hud-guidance-banner info hidden" style="display: none;">
+            <span id="hudGuidanceIcon" class="guidance-icon">💡</span>
+            <div class="guidance-content">
+              <span id="hudGuidanceBadge" class="guidance-status-tag">COACH TIP</span>
+              <span id="hudGuidanceText" class="guidance-main-msg">Ready to begin</span>
+            </div>
+            <button id="btnCloseGuidanceBanner" class="guidance-close-btn" onclick="window.app.dismissCoachTip(event)" title="Dismiss Tip">✕</button>
           </div>
 
-          <!-- Welcome & Demo Launcher Splash (Shown when camera is inactive) -->
-          <div id="viewportSplash" class="viewport-splash">
-            <div class="splash-icon">🔬</div>
-            <h2 class="splash-title">Ready for Biomechanical Analysis</h2>
-            <p class="splash-desc">
-              Start your webcam for real-time skeletal telemetry, upload a video file for inspection, or launch the interactive biomechanical simulation.
-            </p>
+          <!-- Splash Screen (Modern Spacious Hero Deck - Clean, No Fluff) -->
+          <div id="viewportSplash" class="viewport-splash gym-splash">
+            <div class="splash-badge-wrap">
+              <span id="splashModeBadge" class="splash-mode-badge gym-badge">⚡ ATHLETIC KINEMATICS &amp; FORM</span>
+            </div>
+
+            <div class="splash-hero-header">
+              <div id="splashIcon" class="splash-icon gym-icon">🏋️</div>
+              <div class="splash-hero-text">
+                <h2 id="splashTitle" class="splash-title">Strength &amp; Form Kinematics</h2>
+                <p id="splashDesc" class="splash-desc">
+                  Real-time skeletal joint telemetry, parallel depth validation, and automated form fault detection.
+                </p>
+              </div>
+            </div>
+
+            <!-- Primary Action Buttons -->
             <div class="splash-cta-row">
-              <button class="btn btn-primary" onclick="window.app.startCamera()">
-                📷 Start Camera
+              <button id="splashCamBtn" class="btn btn-primary splash-btn-hero" onclick="window.app.startCamera()">
+                <span id="splashCamBtnIcon" class="btn-icon">🏋️</span>
+                <span id="splashCamBtnText">Start Workout Cam</span>
               </button>
-              <label class="btn btn-secondary file-input-label">
-                📁 Upload Video
+              <label class="btn btn-secondary splash-btn-secondary file-input-label">
+                <span id="splashUploadBtnIcon" class="btn-icon">📁</span>
+                <span id="splashUploadBtnText">Upload Lift Video</span>
                 <input type="file" id="videoFileInput" accept="video/*" onchange="window.app.handleVideoUpload(event)">
               </label>
-              <button class="btn btn-demo" onclick="window.app.startSimulation()">
-                🎮 Run Simulation Demo
+              <button id="splashSimBtn" class="btn btn-demo splash-btn-demo" onclick="window.app.startSimulation()">
+                <span id="splashSimBtnIcon" class="btn-icon">🎮</span>
+                <span id="splashSimBtnText">Run 3D Simulation</span>
               </button>
+            </div>
+
+            <!-- 3-Step Clear Setup Guide (Clean, Spacious, No Fluff) -->
+            <div class="instruction-steps-grid">
+              <div class="inst-step">
+                <span class="inst-num">1</span>
+                <div class="inst-step-body">
+                  <strong>Camera Framing</strong>
+                  <p>Stand 6–8 ft away in full view from head to ankles.</p>
+                </div>
+              </div>
+
+              <div class="inst-step voice-step">
+                <span class="inst-num">2</span>
+                <div class="inst-step-body">
+                  <strong>Hands-Free Voice</strong>
+                  <p>Say <em>"Hey Coach"</em> anytime to talk or ask form questions.</p>
+                </div>
+              </div>
+
+              <div class="inst-step criteria-step" id="splashInstCriteriaStep">
+                <span class="inst-num">3</span>
+                <div class="inst-step-body">
+                  <strong id="splashInstCriteriaTitle">Strict Rep Standards</strong>
+                  <p id="splashInstCriteriaDesc">Lockout to parallel depth. Green = Valid, Red = Fault.</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         <!-- Controls Toolbar -->
         <div class="viewport-controls-toolbar">
-          <div class="controls-btn-group">
-            <button id="startCamBtn" class="btn btn-primary" onclick="window.app.startCamera()">
-              📷 Start Camera
+          <div class="toolbar-dock source-dock">
+            <span class="dock-label">SOURCE</span>
+            <button id="startCamBtn" class="dock-btn primary" onclick="window.app.startCamera()">
+              <span class="btn-icon">📷</span> Camera
             </button>
-            <button id="stopCamBtn" class="btn btn-danger" onclick="window.app.stopStreams()" style="display: none;">
-              ⏹️ Stop Camera
+            <button id="stopCamBtn" class="dock-btn danger" style="display: none;">
+              <span class="btn-icon">⏹</span> Stop
             </button>
-            <label class="btn btn-secondary file-input-label">
-              📁 Upload Video
-              <input type="file" id="videoFileInputToolbar" accept="video/*" onchange="window.app.handleVideoUpload(event)">
+            <label class="dock-btn file-dock-btn" title="Upload exercise video for analysis">
+              <span class="btn-icon">📁</span> Upload
+              <input type="file" id="videoFileInputToolbar" accept="video/*"
+                onchange="window.app.handleVideoUpload(event)">
             </label>
-            <button id="simBtn" class="btn btn-demo" onclick="window.app.toggleSimulation()">
-              🎮 Sim Demo
+            <button id="simBtn" class="dock-btn demo">
+              <span class="btn-icon">🎮</span> 3D Sim
             </button>
           </div>
 
-          <div class="controls-btn-group">
-            <button class="btn btn-secondary" onclick="window.app.resetSession()" title="Reset rep count and stats">
-              🔄 Reset Session
+          <div class="toolbar-dock actions-dock">
+            <span class="dock-label">TOOLS</span>
+            <button id="btnOpenAiLab" class="dock-btn ai-lab-btn" onclick="window.app.openAiExerciseModal()"
+              title="AI Exercise Lab: Add or Modify Exercises with Gemini AI">
+              <span class="btn-icon">✨</span> AI Exercise Lab
             </button>
-            <button class="btn btn-secondary" onclick="window.app.exportData()" title="Export session history to JSON">
-              📥 Export Data
+            <button id="btnSimFault" class="dock-btn warning" onclick="window.app.toggleSimFault()"
+              title="Simulate common form fault (or press 'F')">
+              <span class="btn-icon">⚠️</span> Test Fault
             </button>
+            <button class="dock-btn secondary" onclick="window.app.resetSession()"
+              title="Reset repetition counter & analytics">
+              <span class="btn-icon">↻</span> Reset
+            </button>
+            <button class="dock-btn secondary" onclick="window.app.exportData()" title="Export metrics report as JSON">
+              <span class="btn-icon">↓</span> Export
+            </button>
+          </div>
+        </div>
+
+        <!-- AI Exercise Lab Animated Modal (Positioned Directly Under the 3D Sim) -->
+        <div id="aiExerciseModal" class="ai-exercise-modal-under-sim" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="aiModalTitle">
+          <div class="ai-modal-header">
+            <div class="ai-modal-title-wrap">
+              <div class="ai-modal-icon-glow">✨</div>
+              <div>
+                <h3 id="aiModalTitle" class="ai-modal-title">Gemini AI Exercise Lab</h3>
+                <p class="ai-modal-subtitle">Generate new kinetic exercises or dynamically modify criteria using Google Gemini AI</p>
+              </div>
+            </div>
+            <div class="ai-modal-header-actions">
+              <span class="ai-model-tag"><span class="pulse-dot"></span> Gemini 3.1 Flash</span>
+              <button class="ai-modal-close-btn" onclick="window.app.closeAiExerciseModal()" title="Close Lab (Esc)">✕</button>
+            </div>
+          </div>
+
+          <!-- Mode Tabs -->
+          <div class="ai-modal-tabs">
+            <button id="tabAddExercise" class="ai-modal-tab active" onclick="window.app.setAiLabTab('add')">
+              <span>➕</span> Add New Exercise
+            </button>
+            <button id="tabModifyExercise" class="ai-modal-tab" onclick="window.app.setAiLabTab('modify')">
+              <span>🛠️</span> Modify Active Exercise
+            </button>
+          </div>
+
+          <!-- Quick AI Presets Chips -->
+          <div class="ai-preset-chips-wrap">
+            <span class="ai-preset-label">QUICK PRESETS:</span>
+            <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('rdl')">🏋️ Romanian Deadlift</button>
+            <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('split_squat')">🦵 Bulgarian Split Squat</button>
+            <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('pushup')">💪 Standard Push-Up</button>
+            <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('wall_angels')">🩺 Wall Angels (Rehab)</button>
+            <button type="button" class="ai-preset-chip" onclick="window.app.applyAiPreset('lunges')">⚡ Walking Lunges</button>
+          </div>
+
+          <!-- AI Generator / Modifier Form -->
+          <div class="ai-modal-form-grid">
+            <!-- Exercise To Modify Selector (Visible in Modify Tab) -->
+            <div id="aiModifyExerciseSelectRow" class="ai-form-field full-width" style="display: none;">
+              <label for="aiModifyExerciseSelect" style="color: #c084fc; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                <span>🛠️</span> Select Exercise to Alter / Modify:
+              </label>
+              <select id="aiModifyExerciseSelect" class="ai-select-input" style="border-color: rgba(168, 85, 247, 0.5); font-weight: 600;">
+                <!-- Populated dynamically with all built-in and custom exercises -->
+              </select>
+            </div>
+
+            <div class="ai-form-field full-width">
+              <label for="aiExercisePrompt" id="aiPromptLabel">Describe Exercise or Biomechanical Adjustment:</label>
+              <div class="ai-input-with-button">
+                <textarea id="aiExercisePrompt" rows="2" class="ai-prompt-textarea" placeholder="e.g., Create a Romanian Deadlift focusing on hip hinge and hamstring depth, or set Squat depth target to 80 degrees..."></textarea>
+              </div>
+            </div>
+
+            <div class="ai-form-row">
+              <div class="ai-form-field">
+                <label for="aiTargetJoint">Target Monitored Joint:</label>
+                <select id="aiTargetJoint" class="ai-select-input">
+                  <option value="AUTO" selected>🤖 Auto-Detect by Gemini AI</option>
+                  <option value="KNEE">🦵 Knee Joint (Hip-Knee-Ankle)</option>
+                  <option value="HIP">🍑 Hip Joint (Shoulder-Hip-Knee)</option>
+                  <option value="ELBOW">💪 Elbow Joint (Shoulder-Elbow-Wrist)</option>
+                  <option value="SHOULDER">🎯 Shoulder Joint (Hip-Shoulder-Elbow)</option>
+                </select>
+              </div>
+
+              <div class="ai-form-field">
+                <label for="aiTargetMode">Target Program Mode:</label>
+                <select id="aiTargetMode" class="ai-select-input">
+                  <option value="gym" selected>🏋️ Fitness / Strength (Gym)</option>
+                  <option value="pt">🩺 Physical Therapy / Rehabilitation</option>
+                </select>
+              </div>
+
+              <div class="ai-form-action-wrap">
+                <button id="btnAiGenerate" class="btn btn-primary ai-submit-btn" onclick="window.app.generateOrModifyAiExercise()">
+                  <span id="btnAiGenerateIcon">⚡</span> <span id="btnAiGenerateText">Generate with Gemini</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Unrecognized Exercise "Did You Mean?" Suggestions Card -->
+          <div id="aiExerciseSuggestionsCard" class="ai-suggestions-card" style="display: none;">
+            <div class="ai-suggestion-header">
+              <span class="ai-suggestion-icon">❓</span>
+              <div>
+                <h4 class="ai-suggestion-title">Unrecognized Exercise</h4>
+                <p id="aiSuggestionMsg" class="ai-suggestion-msg">We couldn't recognize your input as a standard exercise. Did you mean one of these?</p>
+              </div>
+            </div>
+            <div id="aiSuggestionPills" class="ai-suggestion-pills">
+              <!-- Dynamically populated suggestion chips -->
+            </div>
+          </div>
+
+          <!-- Live Biomechanical Spec Preview Card -->
+          <div id="aiExercisePreviewCard" class="ai-preview-card" style="display: none;">
+            <div class="ai-preview-header">
+              <div class="ai-preview-badge">✨ AI BIOMECHANICAL SPECIFICATION</div>
+              <span id="aiPreviewModeTag" class="preview-mode-tag">GYM MODE</span>
+            </div>
+
+            <div class="ai-preview-body">
+              <div class="ai-preview-title-row">
+                <div>
+                  <h4 id="aiPreviewName" class="ai-preview-name">Romanian Deadlift (RDL)</h4>
+                  <span id="aiPreviewCategory" class="ai-preview-category">Posterior Chain / Hamstrings</span>
+                </div>
+                <div class="ai-preview-stat-pill">
+                  <span class="pill-label">TRACKED JOINT</span>
+                  <span id="aiPreviewJoint" class="pill-val">HIP HINGE</span>
+                </div>
+              </div>
+
+              <div class="ai-preview-grid">
+                <div class="ai-preview-item">
+                  <span class="item-label">TARGET DEPTH / ROM</span>
+                  <span id="aiPreviewTarget" class="item-value">≤ 75° (Deep Hinge)</span>
+                </div>
+                <div class="ai-preview-item">
+                  <span class="item-label">LOCKOUT CRITERION</span>
+                  <span id="aiPreviewLockout" class="item-value">&gt; 165° (Extension)</span>
+                </div>
+                <div class="ai-preview-item">
+                  <span class="item-label">MONITORED FAULT</span>
+                  <span id="aiPreviewFault" class="item-value fault-val">⚠️ Torso Rounding</span>
+                </div>
+                <div class="ai-preview-item">
+                  <span class="item-label">3D MOTION PATTERN</span>
+                  <span id="aiPreviewMotion" class="item-value" style="color: #60a5fa; font-weight: 700;">Hinge (175° ➔ 75°)</span>
+                </div>
+              </div>
+
+              <div class="ai-preview-tip-box" id="aiPreviewTip">
+                ⚡ <strong>Biomechanical Cue:</strong> Push hips back with soft knees and maintain flat spine. Skim weights against thighs.
+              </div>
+            </div>
+
+            <div class="ai-preview-actions">
+              <button id="btnLaunchInSim" class="btn btn-demo btn-launch-sim" onclick="window.app.launchGeneratedExercise()">
+                <span class="btn-icon">🚀</span> Add to Exercise Menu &amp; Run in 3D Sim
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="window.app.closeAiExerciseModal()">
+                Done
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- Right Stage: Live Analytics Dashboard Panel -->
+      <!-- Dashboard Panel -->
       <aside class="dashboard-panel">
 
-        <!-- Real-Time Joint Angle Display & Dial -->
-        <div class="card">
+        <!-- Unified Telemetry Card -->
+        <div class="card telemetry-card">
           <div class="card-title">
-            <span>Real-Time Angle Telemetry</span>
-            <span id="activeSideBadge" style="color: var(--primary); font-family: var(--font-mono);">AUTO (RIGHT)</span>
+            <span class="telemetry-badge-label">Live Telemetry</span>
+            <span id="activeSideBadge" class="side-indicator-badge">AUTO (RIGHT)</span>
           </div>
+
           <div class="angle-hero-section">
             <div class="angle-readout-box">
-              <div class="angle-label" id="activeJointName">Knee Joint Flexion</div>
-              <div class="angle-number" id="liveAngleValue">--°</div>
-              <div class="angle-subtext" id="angleSubtext">Vector BA · BC exact trigonometric computation</div>
+              <div class="angle-label" id="activeJointName">KNEE JOINT FLEXION</div>
+              <div class="angle-number" id="liveAngleValue">0°</div>
+              <div class="angle-subtext" id="angleSubtext">Real-time vector angular displacement</div>
             </div>
             <div class="angle-dial-wrap">
               <svg class="angle-svg-dial" viewBox="0 0 100 100">
-                <circle class="dial-bg" cx="50" cy="50" r="45"></circle>
-                <circle id="dialProgressBar" class="dial-bar" cx="50" cy="50" r="45"></circle>
+                <circle class="dial-bg" cx="50" cy="50" r="44"></circle>
+                <circle id="dialProgressBar" class="dial-bar" cx="50" cy="50" r="44"></circle>
               </svg>
-              <div class="dial-center-icon" id="dialCenterIcon">📐</div>
+              <div class="dial-center-icon" id="dialCenterIcon">◎</div>
             </div>
           </div>
 
-          <!-- Dynamic Form Compliance Score Bar -->
+          <!-- Form Compliance Meter -->
           <div class="compliance-container">
             <div class="compliance-header">
-              <span style="color: var(--text-muted);">Real-Time Form Compliance</span>
-              <span id="complianceScoreText" style="color: var(--optimal); font-family: var(--font-mono);">100%</span>
+              <span>Form Compliance</span>
+              <span id="complianceScoreText">100%</span>
             </div>
             <div class="compliance-track">
               <div id="complianceFillBar" class="compliance-fill" style="width: 100%;"></div>
             </div>
           </div>
 
-          <!-- Four-Metric Primary Grid -->
+          <!-- 4-Stat Metrics Grid (De-cluttered) -->
           <div class="stats-metrics-grid">
             <div class="stat-metric-card">
-              <span class="stat-metric-title">Completed Reps</span>
-              <span class="stat-metric-val" id="repCountVal" style="color: #fff;">0</span>
-              <span class="stat-metric-footer" id="repTargetFooter">Cycle: Stand ➔ Depth</span>
+              <span class="stat-metric-title" id="repCountTitle">Reps</span>
+              <span class="stat-metric-val" id="repCountVal">0</span>
+              <span class="stat-metric-footer" id="repTargetFooter" style="display: none;"></span>
             </div>
             <div class="stat-metric-card">
-              <span class="stat-metric-title">Peak ROM Reached</span>
+              <span class="stat-metric-title" id="peakRomTitle">Peak ROM</span>
               <span class="stat-metric-val" id="peakRomVal" style="color: var(--primary);">0°</span>
-              <span class="stat-metric-footer" id="peakRomFooter">Max joint excursion</span>
+              <span class="stat-metric-footer" id="peakRomFooter" style="display: none;"></span>
             </div>
             <div class="stat-metric-card">
-              <span class="stat-metric-title" id="secondaryMetricTitle">Cadence / Tempo</span>
+              <span class="stat-metric-title" id="secondaryMetricTitle">Tempo</span>
               <span class="stat-metric-val" id="secondaryMetricVal" style="color: var(--warning);">--</span>
-              <span class="stat-metric-footer" id="secondaryMetricFooter">Secs per repetition</span>
+              <span class="stat-metric-footer" id="secondaryMetricFooter" style="display: none;"></span>
             </div>
             <div class="stat-metric-card">
-              <span class="stat-metric-title" id="faultCountTitle">Form Faults</span>
-              <span class="stat-metric-val" id="faultCountVal" style="color: var(--fault);">0</span>
-              <span class="stat-metric-footer" id="faultCountFooter">Form alerts flagged</span>
+              <span class="stat-metric-title" id="faultCountTitle">Faults</span>
+              <span class="stat-metric-val" id="faultCountVal" style="color: var(--error);">0</span>
+              <span class="stat-metric-footer" id="faultCountFooter" style="display: none;"></span>
             </div>
           </div>
         </div>
 
-        <!-- Mode-Specific Clinical Guidance / Gym Strictness Card -->
-        <div class="card mode-custom-card gym-mode-theme" id="modeConfigCard">
-          <div class="card-title">
-            <span id="modeCardTitle">Gym Mode Standards & Strict Form Criteria</span>
-            <span id="modeBadgePill" class="status-pill pass">FORM STRICT</span>
+        <!-- Segmented Detail Deck (Tabs: Waveform / Standards / Session Log) -->
+        <div class="card detail-deck-card">
+          <!-- Segmented Tab Navigation Bar -->
+          <div class="deck-tab-bar" role="tablist">
+            <button id="tabBtnWaveform" class="deck-tab-btn active" onclick="window.app.setDashboardTab('waveform')">
+              <span>📈</span> Waveform
+            </button>
+            <button id="tabBtnStandards" class="deck-tab-btn" onclick="window.app.setDashboardTab('standards')">
+              <span>🎯</span> Standards
+            </button>
+            <button id="tabBtnHistory" class="deck-tab-btn" onclick="window.app.setDashboardTab('history')">
+              <span>📋</span> Rep Log <span id="historyCountBadge" class="tab-count-badge">0</span>
+            </button>
           </div>
 
-          <!-- Therapy Mode Target Controls -->
-          <div id="ptControlsSection" style="display: none;">
-            <div class="threshold-slider-group">
-              <div class="slider-label-row">
-                <span style="color: var(--text-muted);" id="thresholdSliderLabel">Safe Flexion Limit (ACL Rehab):</span>
-                <span class="threshold-val-badge" id="thresholdDisplayBadge">100°</span>
-              </div>
-              <input type="range" id="safeRomSlider" class="range-slider" min="70" max="120" value="100" oninput="window.app.updateSafeThreshold(this.value)">
-              <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-dim);">
-                <span>60° (Conservative)</span>
-                <span>100° (Post-Op ACL)</span>
-                <span>140° (Full)</span>
-              </div>
+          <!-- Tab Pane 1: ROM Waveform -->
+          <div id="deckPaneWaveform" class="deck-tab-pane active">
+            <div class="pane-header">
+              <span class="pane-title">Real-Time Waveform</span>
+              <span class="pane-tag">LIVE FEED</span>
             </div>
-            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; line-height: 1.4;">
-              <span id="ptClinicalTip">💡 <strong>Squat Rehab:</strong> Maintain knee alignment over toes. Alerts trigger if flexion exceeds safe threshold to prevent graft strain.</span>
+            <div class="waveform-chart-wrap">
+              <canvas id="angleChartCanvas"></canvas>
             </div>
           </div>
 
-          <!-- Gym Mode Controls -->
-          <div id="gymControlsSection">
-            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem;">
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: var(--text-muted);">Required Depth Criterion:</span>
-                <span style="color: var(--optimal); font-weight: 700; font-family: var(--font-mono);" id="gymDepthCriterion">≤ 90° (Parallel/Below)</span>
+          <!-- Tab Pane 2: Mode Criteria & Standards -->
+          <div id="deckPaneStandards" class="deck-tab-pane">
+            <div id="modeConfigCard" class="mode-custom-card gym-mode-theme">
+              <div class="pane-header">
+                <span id="modeCardTitle" class="pane-title">Form Standards</span>
+                <span id="modeBadgePill" class="status-pill pass">STRICT</span>
               </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: var(--text-muted);">Lockout Threshold:</span>
-                <span style="color: var(--primary); font-weight: 700; font-family: var(--font-mono);" id="gymLockoutCriterion">> 160° (Full Extension)</span>
+
+              <!-- PT Controls -->
+              <div id="ptControlsSection" style="display: none;">
+                <div class="threshold-slider-group">
+                  <div class="slider-label-row">
+                    <span id="thresholdSliderLabel" style="color: var(--text-secondary);">Safe Flexion Limit</span>
+                    <span class="threshold-val-badge" id="thresholdDisplayBadge">100°</span>
+                  </div>
+                  <input type="range" id="safeRomSlider" class="range-slider" min="70" max="120" value="100"
+                    oninput="window.app.updateSafeThreshold(this.value)">
+                  <div class="slider-scale-labels">
+                    <span>Conservative</span>
+                    <span>Target</span>
+                    <span>Full ROM</span>
+                  </div>
+                </div>
+                <div class="clinical-tip-box">
+                  <span id="ptClinicalTip">💡 <strong>Rehab:</strong> Move within safe pain-free threshold.</span>
+                </div>
               </div>
-              <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
-                ⚡ <strong>Gym Standards:</strong> Partial reps will not register. Excessive trunk tilt or elbow displacement triggers immediate posture fault alerts.
+
+              <!-- Gym Controls -->
+              <div id="gymControlsSection">
+                <div class="gym-criteria-list">
+                  <div class="criteria-row">
+                    <span class="criteria-label">Target Criterion</span>
+                    <span class="criteria-value pass" id="gymDepthCriterion">≤ 90° Parallel</span>
+                  </div>
+                  <div class="criteria-row">
+                    <span class="criteria-label">Lockout / Starting</span>
+                    <span class="criteria-value info" id="gymLockoutCriterion">> 160° Extension</span>
+                  </div>
+                </div>
+                <div class="criteria-note">
+                  Strict form tracking: Reps require full lock-to-peak excursion. Form faults reduce compliance score.
+                </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Tab Pane 3: Session History Log -->
+          <div id="deckPaneHistory" class="deck-tab-pane">
+            <div class="pane-header">
+              <span class="pane-title">Repetition Log</span>
+              <button class="mini-action-btn" onclick="window.app.exportData()" title="Export CSV/JSON">Export</button>
+            </div>
+            <div class="table-container">
+              <table class="rep-history-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Exercise</th>
+                    <th>Peak ROM</th>
+                    <th>Duration</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="repHistoryBody">
+                  <tr id="emptyHistoryRow">
+                    <td colspan="5" class="empty-table-msg">
+                      No reps logged yet. Begin exercise to record data.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
-
-        <!-- Real-Time Waveform Line Chart -->
-        <div class="card chart-card">
-          <div class="card-title">
-            <span>Live Angle Waveform (ROM Over Time)</span>
-            <span style="font-size: 0.72rem; color: var(--text-dim); font-family: var(--font-mono);">60 FPS</span>
-          </div>
-          <div class="waveform-chart-wrap">
-            <canvas id="angleChartCanvas"></canvas>
-          </div>
-        </div>
-
-        <!-- Repetition & Fault Log -->
-        <div class="card history-card">
-          <div class="card-title">
-            <span>Session Repetition Log</span>
-            <span id="historyCountBadge" style="font-size: 0.72rem; color: var(--text-muted);">0 Records</span>
-          </div>
-          <div class="table-container">
-            <table class="rep-history-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Exercise</th>
-                  <th>Peak ROM</th>
-                  <th>Duration</th>
-                  <th>Form Status</th>
-                </tr>
-              </thead>
-              <tbody id="repHistoryBody">
-                <tr id="emptyHistoryRow">
-                  <td colspan="5" style="text-align: center; color: var(--text-dim); padding: 20px;">
-                    No repetitions logged yet. Perform reps to view analytics.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
       </aside>
 
     </main>
 
-    <!-- Clinical / Biomechanical Legend Footer -->
+    <!-- Footer -->
     <footer class="clinical-legend">
       <div class="legend-item">
         <div class="legend-dot green"></div>
-        <span>Optimal Posture / Safe Prescribed ROM</span>
+        <span>Optimal Form</span>
       </div>
       <div class="legend-item">
         <div class="legend-dot red"></div>
-        <span>Posture Fault / Safe Limit Exceeded</span>
+        <span>Form Fault</span>
       </div>
       <div class="legend-item">
         <div class="legend-dot cyan"></div>
-        <span>Active Joint Angle Badge</span>
+        <span>Active Joint</span>
       </div>
-      <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-dim);">
-        Trigonometry Engine: Vector Dot-Product Formula <code>acos((BA·BC)/(|BA|*|BC|)) * (180/π)</code>
+      <div style="margin-left: auto; font-size: 0.72rem; color: var(--text-tertiary);">
+        Vector Trigonometry: <code
+          style="font-family: var(--font-mono); font-size: 0.7rem;">acos((BA·BC)/(|BA|·|BC|)) × (180/π)</code>
       </div>
     </footer>
 
+    <!-- Floating Action Button to launch AI Coach -->
+    <button id="aiCoachFabBtn" class="ai-coach-fab" title="Open Dedicated AI Coach">
+      <span class="ai-fab-icon">✨</span>
+      <span class="ai-fab-text">AI Coach</span>
+    </button>
+
   </div>
 
-  <!-- Toast Notification System -->
+  <!-- Dedicated Slide-out AI Coach Drawer Section -->
+  <div id="aiCoachBackdrop" class="ai-coach-backdrop" onclick="window.app.closeCoachDrawer()"></div>
+
+  <aside id="aiCoachDrawer" class="ai-coach-drawer" role="dialog" aria-modal="true" aria-label="AI Biomechanical Coach">
+    <div class="ai-drawer-header">
+      <div class="ai-drawer-title-wrap">
+        <span class="ai-sparkle-icon">✨</span>
+        <div class="ai-drawer-heading">
+          <div class="ai-drawer-title-row">
+            <span class="ai-drawer-title">AI Biomechanics Coach</span>
+            <span class="ai-pro-badge">PRO ADVISOR</span>
+          </div>
+          <span class="ai-drawer-subtitle">Interactive Form & Kinematics Intelligence</span>
+        </div>
+      </div>
+      <button id="btnCloseCoachDrawer" class="ai-drawer-close-btn" onclick="window.app.closeCoachDrawer()"
+        title="Close AI Coach (Esc)">
+        ✕
+      </button>
+    </div>
+
+    <!-- Persona & Controls Bar -->
+    <div class="ai-drawer-toolbar">
+      <div class="ai-toolbar-group">
+        <span class="ai-toolbar-icon">🎙️</span>
+        <select id="aiVoiceSelect" class="ai-voice-select" title="Select Voice Persona">
+          <option value="21m00Tcm4TlvDq8ikWAM" selected>Rachel (Clinical Pro)</option>
+          <option value="onwK4e9ZLuTAKqWW03F9">Daniel (Authoritative)</option>
+          <option value="ErXwobaYiN019PkySvjV">Antoni (Specialist)</option>
+        </select>
+      </div>
+      <div class="ai-toolbar-actions">
+        <button id="btnDrawerVoiceWake" class="ai-wake-status-btn active" onclick="window.app.toggleVoiceWake()" title="Toggle hands-free 'Hey Coach' listener">
+          🎙️ "Hey Coach" ON
+        </button>
+        <button id="btnVoiceToggle" class="ai-voice-btn active" title="Toggle audio speech">
+          🔊 Voice
+        </button>
+        <button id="btnClearChat" class="ai-clear-btn" title="Clear chat history">
+          🗑️ Clear
+        </button>
+        <button id="btnApiKey" class="ai-clear-btn" title="Configure Gemini API Key">
+          🔑 Key
+        </button>
+      </div>
+    </div>
+
+    <!-- Full-height Scrollable Chat Body -->
+    <div class="ai-drawer-body">
+      <div id="aiChatMessages" class="ai-chat-messages">
+        <div class="ai-chat-bubble assistant">
+          <div class="bubble-avatar">🤖</div>
+          <div class="bubble-content">
+            <p>Welcome! I am your <strong>Biomechanical AI Coach</strong> powered by Google Gemini and ElevenLabs voice.
+            </p>
+            <p>I analyze your joint kinematics, ROM thresholds, and velocity curves in real time. Ask me questions about
+              your form or click <strong>📊</strong> below to diagnose your current set!</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drawer Footer Input -->
+    <div class="ai-drawer-footer">
+      <div class="ai-chat-input-bar">
+        <button id="btnAutoAnalyze" class="ai-auto-btn" title="Auto-analyze current exercise session">
+          📊
+        </button>
+        <input type="text" id="aiChatInput" class="ai-chat-input"
+          placeholder="Ask AI Coach (e.g., 'How was my squat depth?')..." autocomplete="off">
+        <button id="btnDrawerMic" class="ai-mic-input-btn" title="Speak to Coach (Push-to-Talk)">
+          🎙️
+        </button>
+        <button id="btnSendChat" class="ai-send-btn" title="Send message">
+          ➤
+        </button>
+      </div>
+      <div class="ai-drawer-tip">
+        <span>💡 Say <strong>"Hey Coach..."</strong> or tap <strong>🎙️</strong> to speak &bull; Press <strong>Esc</strong> to close</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Floating Voice HUD Toast for Hands-Free "Hey Coach" -->
+  <div id="voiceHudToast" class="voice-hud-toast hidden">
+    <div class="voice-hud-glow"></div>
+    <span class="voice-hud-icon">🎙️</span>
+    <div class="voice-hud-text">
+      <span class="voice-hud-title">"Hey Coach" Listening...</span>
+      <span id="voiceHudTranscript" class="voice-hud-transcript">"Say your form question..."</span>
+    </div>
+  </div>
+
+  <!-- Toast -->
   <div id="toastBanner" class="toast-banner">
     <span id="toastIcon">ℹ️</span>
-    <span id="toastMsg">Notification message</span>
+    <span id="toastMsg">Notification</span>
   </div>
 
-  <!-- Modular Application Entry Point -->
+  <!-- App Entry -->
   <script type="module" src="./js/app.js"></script>
 </body>
+
 </html>

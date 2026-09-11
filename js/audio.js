@@ -1,14 +1,12 @@
 /**
- * FlexAlign AI - Auditory Telemetry & Spoken Coaching Engine
- * Web Audio API synthesizer chimes + Web Speech API synthesized coach.
+ * FlexAlign AI - Auditory Telemetry Engine
+ * Web Audio API synthesizer chimes.
  */
 
 export class AudioEngine {
   constructor() {
     this.audioCtx = null;
     this.soundEnabled = true;
-    this.voiceEnabled = true;
-    this.lastSpokenTime = 0;
   }
 
   init() {
@@ -59,30 +57,14 @@ export class AudioEngine {
     this.playTone(190, 'triangle', 0.22, 0.22);
   }
 
-  speakCoach(text, priority = false) {
-    if (!this.voiceEnabled || !('speechSynthesis' in window)) return;
-    const now = Date.now();
-    if (!priority && now - this.lastSpokenTime < 2400) return;
-    this.lastSpokenTime = now;
-    try {
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.rate = 1.05;
-      utter.pitch = 1.0;
-      utter.volume = 0.9;
-      window.speechSynthesis.speak(utter);
-    } catch (e) {
-      console.warn('Speech synthesis error:', e);
-    }
+  playCoachWakeChime() {
+    // Futuristic sci-fi double ascending chime for 'Hey Coach' wake detection
+    this.playTone(440, 'sine', 0.08, 0.16);
+    setTimeout(() => this.playTone(659.25, 'sine', 0.22, 0.2), 85);
   }
 
   toggleSound() {
     this.soundEnabled = !this.soundEnabled;
     return this.soundEnabled;
-  }
-
-  toggleVoice() {
-    this.voiceEnabled = !this.voiceEnabled;
-    return this.voiceEnabled;
   }
 }

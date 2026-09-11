@@ -4,6 +4,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 header.top-bar {
+  position: relative;
+  z-index: 10000;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -99,7 +101,7 @@ header.top-bar {
   box-shadow: var(--shadow-sm);
 }
 
-/* ── Audio/Voice Toggle Buttons ────────────────────────────── */
+/* ── Audio Toggle Button ───────────────────────────────────── */
 .top-controls {
   display: flex;
   align-items: center;
