@@ -1,13 +1,22 @@
 /**
- * FlexAlign AI - Main Application Controller
- * Orchestrates MediaPipe Pose stream, UI components, evaluator, HUD, and audio telemetry.
- * v2 additions:
- *  - Side auto-detect hysteresis (2s cooldown + 0.15 score gap)
- *  - 3D avatar (Avatar3DRenderer) shown during simulation mode
+ * FlexAlign AI - Main Application Orchestrator
+ * Coordinates core subsystems and modular component controllers:
+ *  - CameraTracker (MediaPipe Pose, camera stream, side detection, video upload)
+ *  - HUDManager (Telemetry, dials, compliance score, coach tips, toasts, 3D viewport navigation)
+ *  - CallOverlay (Full-duplex voice call, soundwaves, barge-in)
+ *  - CoachDrawer (AI Coach chat, "Hey Coach" voice wake, PTT mic)
+ *  - AiLabModal (AI exercise generator, presets, biomechanical simulation)
  */
 
 import { AudioEngine } from './audio.js';
-import { GYM_EXERCISES, PT_EXERCISES, registerExercise, modifyExerciseDefinition, getExerciseDefinition, getAllExercisesForMode, CUSTOM_EXERCISES, synthesizeExerciseFromQuery } from './exercises.js';
+import {
+  GYM_EXERCISES,
+  PT_EXERCISES,
+  registerExercise,
+  getExerciseDefinition,
+  getAllExercisesForMode,
+  CUSTOM_EXERCISES
+} from './exercises.js';
 import { ExerciseEvaluator } from './evaluator.js';
 import { HUDRenderer } from './renderer.js';
 import { WaveformChart } from './waveform.js';
@@ -18,9 +27,16 @@ import { GeminiCoach } from './gemini.js';
 import { ElevenLabsVoice } from './elevenlabs.js';
 import { VoiceListener } from './voice-listener.js';
 
+// Modular Sub-Controllers
+import { CameraTracker } from './components/camera-tracker.js';
+import { CallOverlay } from './components/call-overlay.js';
+import { CoachDrawer } from './components/coach-drawer.js';
+import { HUDManager } from './components/hud-manager.js';
+import { AiLabModal } from './components/ai-lab-modal.js';
+
 export class FlexAlignApp {
   constructor() {
-    // Core Subsystems
+    // 1. Core Subsystems
     this.audio = new AudioEngine();
     this.evaluator = new ExerciseEvaluator(this.audio);
     this.simulator = new MotionSimulator();
@@ -29,35 +45,7 @@ export class FlexAlignApp {
     this.voice = new ElevenLabsVoice();
     this._voiceEnabled = true;
 
-    // Interactive Voice Call Mode State
-    this.isCallActive = false;
-    this.callDurationSecs = 0;
-    this.callTimerInterval = null;
-    this.isCallMuted = false;
-
-    // Cross-wire Voice Engine speaking state for echo suppression & visual wave sync
-    this.voice.onSpeakingStart = () => {
-      if (this.voiceListener) this.voiceListener.setCoachSpeaking(true);
-      this.updateCallSpeakingState(true);
-    };
-
-    this.voice.onSpeakingEnd = () => {
-      if (this.voiceListener) this.voiceListener.setCoachSpeaking(false);
-      this.updateCallSpeakingState(false);
-    };
-
-    // Hands-Free "Hey Coach" Voice Listener & Interactive Call Engine
-    this.voiceListener = new VoiceListener({
-      onWakeDetected: (initialQuery) => this.handleWakeDetected(initialQuery),
-      onWakeWord: (query) => this.handleWakeWordQuery(query),
-      onListeningChange: (isListening, isAwaiting, isCall) => this.updateVoiceWakeUI(isListening, isAwaiting, isCall),
-      onInterimSpeech: (text, isAwaiting) => this.updateVoiceInterimHUD(text, isAwaiting),
-      onCallSpeechComplete: (query) => this.handleCallSpeechComplete(query),
-      onUserBargeIn: (text) => this.handleUserBargeIn(text),
-      onError: (err) => console.warn('Voice listener error:', err)
-    });
-
-    // DOM Bindings
+    // 2. DOM Elements
     this.video = document.getElementById('webcamVideo');
     this.canvas = document.getElementById('outputCanvas');
     this.chartCanvas = document.getElementById('angleChartCanvas');
@@ -66,31 +54,50 @@ export class FlexAlignApp {
     this.hud = new HUDRenderer(this.canvas);
     this.waveform = new WaveformChart(this.chartCanvas);
 
-    // Stream State
-    this.pose = null;
-    this.camera = null;
+    // 3. State Flags
     this.isCameraRunning = false;
     this.isSimulationRunning = false;
-    this.animFrameId = null;
+    this.isStreaming = false;
     this.simFaultActive = false;
+    this.animFrameId = null;
+    this.lastRenderedRecord = null;
 
-    // Side Auto-Detect Hysteresis
-    this.sidePreference = 'auto'; // 'auto' | 'left' | 'right'
-    this._lastResolvedSide = 'left';
-    this._lastSideChangeTime = 0;
-    this._SIDE_CHANGE_COOLDOWN_MS = 2000;
-    this._SIDE_SCORE_GAP = 0.15;
+    // 4. Instantiate Modular Component Controllers
+    this.hudManager = new HUDManager({ app: this });
+    this.coachDrawer = new CoachDrawer({ app: this });
+    this.callOverlay = new CallOverlay({ app: this });
+    this.aiLabModal = new AiLabModal({ app: this });
+    this.cameraTracker = new CameraTracker({
+      app: this,
+      video: this.video,
+      onPoseResults: (results) => this.onPoseResults(results),
+      showToast: (msg, icon) => this.showToast(msg, icon)
+    });
 
-    // Coach Tip Timing: show after exercise / rep is done, not during movement
-    this.postRepCoachTipTimer = null;
-    this.isShowingPostRepTip = false;
+    // 5. Cross-wire Voice Engine speaking state for echo suppression & visual wave sync
+    this.voice.onSpeakingStart = () => {
+      if (this.voiceListener) this.voiceListener.setCoachSpeaking(true);
+      this.callOverlay.updateCallSpeakingState(true);
+    };
 
-    // AI Exercise Lab State
-    this.aiLabTab = 'add';
-    this.currentGeneratedExercise = null;
+    this.voice.onSpeakingEnd = () => {
+      if (this.voiceListener) this.voiceListener.setCoachSpeaking(false);
+      this.callOverlay.updateCallSpeakingState(false);
+    };
 
-    // Initialize Subsystems & UI
-    this.initMediaPipe();
+    // 6. Hands-Free "Hey Coach" Voice Listener & Interactive Call Engine
+    this.voiceListener = new VoiceListener({
+      onWakeDetected: (initialQuery) => this.coachDrawer.handleWakeDetected(initialQuery),
+      onWakeWord: (query) => this.coachDrawer.handleWakeWordQuery(query),
+      onListeningChange: (isListening, isAwaiting, isCall) => this.coachDrawer.updateVoiceWakeUI(isListening, isAwaiting, isCall),
+      onInterimSpeech: (text, isAwaiting) => this.coachDrawer.updateVoiceInterimHUD(text, isAwaiting),
+      onCallSpeechComplete: (query) => this.callOverlay.handleCallSpeechComplete(query),
+      onUserBargeIn: (text) => this.callOverlay.handleUserBargeIn(text),
+      onError: (err) => console.warn('Voice listener error:', err)
+    });
+
+    // 7. Initialize Subsystems & UI
+    this.cameraTracker.initMediaPipe();
     this.bindEvents();
     this.setMode('gym');
 
@@ -103,131 +110,15 @@ export class FlexAlignApp {
     this.handleUrlParams();
   }
 
-  initMediaPipe() {
-    if (typeof Pose === 'undefined') {
-      console.warn('MediaPipe Pose script loading from CDN...');
-      return;
-    }
+  // Backwards compatibility property getters
+  get isCallActive() { return this.callOverlay ? this.callOverlay.isCallActive : false; }
+  get isCallMuted() { return this.callOverlay ? this.callOverlay.isCallMuted : false; }
+  get pose() { return this.cameraTracker ? this.cameraTracker.pose : null; }
+  get camera() { return this.cameraTracker ? this.cameraTracker.camera : null; }
+  get sidePreference() { return this.cameraTracker ? this.cameraTracker.sidePreference : 'auto'; }
+  set sidePreference(val) { if (this.cameraTracker) this.cameraTracker.sidePreference = val; }
 
-    try {
-      this.pose = new Pose({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
-      });
-
-      this.pose.setOptions({
-        modelComplexity: 1,
-        smoothLandmarks: true,
-        enableSegmentation: false,
-        minDetectionConfidence: 0.55,
-        minTrackingConfidence: 0.55
-      });
-
-      this.pose.onResults((results) => this.onPoseResults(results));
-    } catch (err) {
-      console.error('Error instantiating MediaPipe Pose:', err);
-      this.showToast('Could not load MediaPipe Pose. Check internet connection.', '⚠️');
-    }
-  }
-
-  /**
-   * Resolve which side to track with hysteresis to prevent mid-rep flipping.
-   */
-  /**
-   * Resolve which side to track: 'both', 'left', or 'right'.
-   * When limbs are actively in motion on both sides, selects 'both'.
-   * When unilateral motion occurs, selects the moving limb.
-   */
-  resolveActiveSide(landmarks) {
-    if (this.sidePreference === 'left') return 'left';
-    if (this.sidePreference === 'right') return 'right';
-    if (!landmarks || landmarks.length < 29) return 'both';
-
-    const ex = this.evaluator.currentExercise;
-
-    const leftArmVis = (((landmarks[11] && landmarks[11].visibility) || 0) + ((landmarks[13] && landmarks[13].visibility) || 0) + ((landmarks[15] && landmarks[15].visibility) || 0)) / 3;
-    const rightArmVis = (((landmarks[12] && landmarks[12].visibility) || 0) + ((landmarks[14] && landmarks[14].visibility) || 0) + ((landmarks[16] && landmarks[16].visibility) || 0)) / 3;
-    const leftLegVis = (((landmarks[23] && landmarks[23].visibility) || 0) + ((landmarks[25] && landmarks[25].visibility) || 0) + ((landmarks[27] && landmarks[27].visibility) || 0)) / 3;
-    const rightLegVis = (((landmarks[24] && landmarks[24].visibility) || 0) + ((landmarks[26] && landmarks[26].visibility) || 0) + ((landmarks[28] && landmarks[28].visibility) || 0)) / 3;
-
-    // Squat: bilateral lower body compound movement
-    if (ex === 'gym_squat' || ex === 'squat') {
-      if (leftLegVis > 0.35 && rightLegVis > 0.35) return 'both';
-      return leftLegVis >= rightLegVis ? 'left' : 'right';
-    }
-
-    // Overhead Press: bilateral upper body push
-    if (ex === 'gym_press') {
-      if (leftArmVis > 0.35 && rightArmVis > 0.35) return 'both';
-      return leftArmVis >= rightArmVis ? 'left' : 'right';
-    }
-
-    // Bicep Curls:
-    if (ex === 'gym_curl' || ex === 'curl' || ex === 'pt_elbow_flex') {
-      if (leftArmVis > 0.5 && rightArmVis < 0.25) return 'left';
-      if (rightArmVis > 0.5 && leftArmVis < 0.25) return 'right';
-
-      const leftAngle = calculateJointAngle(landmarks[11], landmarks[13], landmarks[15]);
-      const rightAngle = calculateJointAngle(landmarks[12], landmarks[14], landmarks[16]);
-
-      // Detect motion: check if arm is actively curling (< 150°)
-      const isCurlingL = leftAngle > 0 && leftAngle < 150;
-      const isCurlingR = rightAngle > 0 && rightAngle < 150;
-
-      if (isCurlingL && isCurlingR) return 'both';
-      if (isCurlingL && !isCurlingR && rightAngle > 155) return 'left';
-      if (isCurlingR && !isCurlingL && leftAngle > 155) return 'right';
-
-      if (leftArmVis > 0.35 && rightArmVis > 0.35) return 'both';
-      return leftArmVis >= rightArmVis ? 'left' : 'right';
-    }
-
-    // Triceps Extension:
-    if (ex === 'gym_extension' || ex === 'pt_elbow_ext') {
-      if (leftArmVis > 0.5 && rightArmVis < 0.25) return 'left';
-      if (rightArmVis > 0.5 && leftArmVis < 0.25) return 'right';
-
-      const leftAngle = calculateJointAngle(landmarks[11], landmarks[13], landmarks[15]);
-      const rightAngle = calculateJointAngle(landmarks[12], landmarks[14], landmarks[16]);
-
-      if (Math.abs(leftAngle - rightAngle) >= 30) {
-        return leftAngle > rightAngle ? 'left' : 'right';
-      }
-      if (leftArmVis > 0.35 && rightArmVis > 0.35) return 'both';
-      return leftArmVis >= rightArmVis ? 'left' : 'right';
-    }
-
-    // PT Shoulder Lateral Raise:
-    if (ex === 'pt_raise' || ex === 'raise') {
-      const leftAngle = calculateJointAngle(landmarks[23], landmarks[11], landmarks[13]);
-      const rightAngle = calculateJointAngle(landmarks[24], landmarks[12], landmarks[14]);
-
-      const isRaisedL = leftAngle > 30;
-      const isRaisedR = rightAngle > 30;
-
-      if (isRaisedL && isRaisedR) return 'both';
-      if (isRaisedL && !isRaisedR && rightAngle <= 25) return 'left';
-      if (isRaisedR && !isRaisedL && leftAngle <= 25) return 'right';
-      if (leftArmVis > 0.35 && rightArmVis > 0.35) return 'both';
-      return leftArmVis >= rightArmVis ? 'left' : 'right';
-    }
-
-    // PT Knee Extension:
-    if (ex === 'pt_knee_ext') {
-      const leftAngle = calculateJointAngle(landmarks[23], landmarks[25], landmarks[27]);
-      const rightAngle = calculateJointAngle(landmarks[24], landmarks[26], landmarks[28]);
-
-      const isExtL = leftAngle > 110;
-      const isExtR = rightAngle > 110;
-
-      if (isExtL && isExtR) return 'both';
-      if (isExtL && !isExtR) return 'left';
-      if (isExtR && !isExtL) return 'right';
-      if (leftLegVis > 0.35 && rightLegVis > 0.35) return 'both';
-      return leftLegVis >= rightLegVis ? 'left' : 'right';
-    }
-
-    return 'both';
-  }
+  // ── Core Biomechanical Results Pipeline ─────────────────────────
 
   onPoseResults(results) {
     if (!results.image) return;
@@ -239,8 +130,8 @@ export class FlexAlignApp {
     const hudText = document.getElementById('hudTrackingText');
 
     if (!results.poseLandmarks) {
-      hudDot.classList.remove('active');
-      hudText.textContent = 'NO POSE DETECTED';
+      if (hudDot) hudDot.classList.remove('active');
+      if (hudText) hudText.textContent = 'NO POSE DETECTED';
       return;
     }
 
@@ -251,7 +142,7 @@ export class FlexAlignApp {
     }
 
     const landmarks = results.poseLandmarks;
-    const side = this.resolveActiveSide(landmarks);
+    const side = this.cameraTracker.resolveActiveSide(landmarks, this.evaluator.currentExercise);
     const sideBadge = document.getElementById('activeSideBadge');
     if (sideBadge) {
       if (side === 'both') {
@@ -270,7 +161,7 @@ export class FlexAlignApp {
     const targetDeg = this.evaluator.mode === 'gym' ? 90 : this.evaluator.therapySafeThresholds[this.evaluator.currentExercise];
     this.waveform.render(this.evaluator.mode, targetDeg);
 
-    this.updateTelemetryUI(evalResult);
+    this.hudManager.updateTelemetryUI(evalResult);
 
     // Render Wireframe, 3D Avatar, Arc, and Joint Badges
     const isOptimal = !evalResult.isFault;
@@ -284,11 +175,9 @@ export class FlexAlignApp {
       // Simulation Mode:
       const has3DAvatar = this.avatar3d && this.avatar3d.isReady && this.avatarCanvas && this.avatarCanvas.style.display !== 'none';
       if (has3DAvatar) {
-        // Clear 2D HUD canvas completely — 3D avatar handles full visualization
         this.hud.clear();
         this.avatar3d.updatePose(landmarks, this.evaluator.currentExercise, side, evalResult.isFault);
       } else {
-        // High-fidelity fallback: full 2D wireframe skeleton + dark grid backdrop
         this.hud.drawGrid(true, false);
         this.hud.renderSkeleton(landmarks, side, this.evaluator.currentExercise, evalResult.angle, isOptimal, false, false);
       }
@@ -297,925 +186,16 @@ export class FlexAlignApp {
     // If new rep completed, add to table & trigger post-rep Coach Tip (only on live physical camera)
     if (evalResult.newRecord && evalResult.newRecord !== this.lastRenderedRecord) {
       this.lastRenderedRecord = evalResult.newRecord;
-      this.appendRepHistory(evalResult.newRecord);
+      this.hudManager.appendRepHistory(evalResult.newRecord);
       if (this.isCameraRunning && !this.isSimulationRunning) {
-        this.showPostRepCoachTip(evalResult.newRecord);
+        this.hudManager.showPostRepCoachTip(evalResult.newRecord);
       }
     }
   }
 
-  updateTelemetryUI(res) {
-    const angleValEl = document.getElementById('liveAngleValue');
-    angleValEl.textContent = `${res.angle}°`;
-    angleValEl.style.color = res.isFault ? '#ef4444' : (res.guidanceType === 'optimal' ? 'var(--success)' : 'var(--primary)');
-
-    // Circular Dial Progress
-    const dialBar = document.getElementById('dialProgressBar');
-    const circumference = 2 * Math.PI * 45; // 282.74
-    const fraction = Math.min(1, Math.max(0, res.angle / 180));
-    dialBar.style.strokeDashoffset = circumference * (1 - fraction);
-    dialBar.style.stroke = res.isFault ? '#ef4444' : (res.guidanceType === 'optimal' ? 'var(--success)' : 'var(--primary)');
-
-    // Form Compliance Score
-    const scoreVal = Math.round(res.complianceScore);
-    const scoreTextEl = document.getElementById('complianceScoreText');
-    scoreTextEl.textContent = `${scoreVal}%`;
-    scoreTextEl.style.color = res.isFault ? '#ef4444' : (scoreVal >= 80 ? 'var(--success)' : 'var(--warning)');
-
-    const fillBarEl = document.getElementById('complianceFillBar');
-    fillBarEl.style.width = `${scoreVal}%`;
-    fillBarEl.style.background = res.isFault ? '#ef4444' : (scoreVal >= 80 ? 'var(--success)' : 'var(--warning)');
-
-    // Four Statistics Metrics
-    document.getElementById('repCountVal').textContent = res.repCount;
-    document.getElementById('peakRomVal').textContent = `${res.peakRom}°`;
-    document.getElementById('faultCountVal').textContent = res.faultCount;
-
-    // Viewport Fault Alert glow
-    const vpContainer = document.getElementById('viewportContainer');
-    if (vpContainer) {
-      vpContainer.classList.toggle('has-fault', !!res.isFault);
-    }
-
-    // Active Joint Badge Alert color
-    const jointBadge = document.getElementById('hudActiveJointBadge');
-    if (jointBadge) {
-      jointBadge.style.borderColor = res.isFault ? 'rgba(239, 68, 68, 0.8)' : '';
-      jointBadge.style.color = res.isFault ? '#ef4444' : '';
-      jointBadge.style.boxShadow = res.isFault ? '0 0 12px rgba(239, 68, 68, 0.4)' : '';
-    }
-
-    // Live Tracking Dot and Text
-    const dot = document.getElementById('hudLiveDot');
-    const trackingText = document.getElementById('hudTrackingText');
-    if (dot && trackingText) {
-      if (res.isFault) {
-        dot.style.background = '#ef4444';
-        dot.style.boxShadow = '0 0 10px #ef4444';
-        trackingText.textContent = 'FAULT DETECTED';
-        trackingText.style.color = '#ef4444';
-      } else {
-        dot.style.background = '';
-        dot.style.boxShadow = '';
-        trackingText.textContent = this.isSimulationRunning ? 'SIMULATION' : 'TRACKING';
-        trackingText.style.color = '';
-      }
-    }
-
-    // Dynamic Biomechanical Guidance Banner: Active for both live camera and 3D simulation
-    const banner = document.getElementById('hudGuidanceBanner');
-    if (banner) {
-      const msgEl = document.getElementById('hudGuidanceText');
-      const iconEl = document.getElementById('hudGuidanceIcon');
-      const badgeEl = document.getElementById('hudGuidanceBadge');
-
-      // If user clicked close button on this specific guidance note, don't reopen until a new message arrives
-      if (this.isGuidanceDismissed) {
-        if (res.guidanceText && res.guidanceText !== this.dismissedGuidanceText) {
-          this.isGuidanceDismissed = false;
-        } else {
-          return;
-        }
-      }
-
-      if (res.isFault) {
-        if (this.postRepCoachTipTimer) {
-          clearTimeout(this.postRepCoachTipTimer);
-          this.postRepCoachTipTimer = null;
-          this.isShowingPostRepTip = false;
-        }
-        banner.style.display = 'flex';
-        banner.className = 'hud-guidance-banner fault';
-        banner.classList.remove('hidden');
-        if (badgeEl) badgeEl.textContent = this.isSimulationRunning ? 'SIMULATED FAULT' : 'FORM FAULT';
-        if (iconEl) iconEl.textContent = '⚠️';
-        if (msgEl) msgEl.textContent = res.guidanceText;
-      } else if (res.guidanceType === 'optimal') {
-        banner.style.display = 'flex';
-        banner.className = 'hud-guidance-banner optimal';
-        banner.classList.remove('hidden');
-        if (badgeEl) badgeEl.textContent = 'OPTIMAL ROM';
-        if (iconEl) iconEl.textContent = '✨';
-        if (msgEl) msgEl.textContent = res.guidanceText;
-      } else if (res.guidanceText) {
-        banner.style.display = 'flex';
-        banner.className = 'hud-guidance-banner info';
-        banner.classList.remove('hidden');
-        const exName = (this.evaluator && this.evaluator.currentExercise) 
-          ? this.evaluator.currentExercise.toUpperCase().replace(/^(GYM_|PT_)/, '').replace(/_/g, ' ') 
-          : 'TECHNIQUE';
-        if (badgeEl) badgeEl.textContent = this.isSimulationRunning ? `3D ${exName}` : `${exName} CUE`;
-        if (iconEl) iconEl.textContent = '💡';
-        if (msgEl) msgEl.textContent = res.guidanceText;
-      } else {
-        if (!this.isShowingPostRepTip) {
-          banner.style.display = 'none';
-        }
-      }
-    }
-  }
-
-  appendRepHistory(record) {
-    const tbody = document.getElementById('repHistoryBody');
-    const emptyRow = document.getElementById('emptyHistoryRow');
-    if (emptyRow) emptyRow.remove();
-
-    document.getElementById('secondaryMetricVal').textContent = record.duration;
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>#${record.id}</td>
-      <td style="color: #fff; font-weight: 600;">${record.exercise}</td>
-      <td>${record.peakRom}</td>
-      <td>${record.duration}</td>
-      <td><span class="status-pill ${record.status === 'PASS' ? 'pass' : 'fault'}">${record.status}</span></td>
-    `;
-    tbody.prepend(tr);
-
-    const countBadge = document.getElementById('historyCountBadge');
-    if (countBadge) countBadge.textContent = this.evaluator.repHistory.length;
-  }
-
-  /**
-   * Display Coach Tip AFTER a repetition has been completed.
-   * ONLY displayed during live physical camera sessions, NEVER during simulation.
-   */
-  showPostRepCoachTip(record) {
-    // Suppress coach tip popups during simulation
-    if (this.isSimulationRunning || !this.isCameraRunning) {
-      this.dismissCoachTip();
-      return;
-    }
-
-    const banner = document.getElementById('hudGuidanceBanner');
-    if (!banner) return;
-
-    const msgEl = document.getElementById('hudGuidanceText');
-    const iconEl = document.getElementById('hudGuidanceIcon');
-    const badgeEl = document.getElementById('hudGuidanceBadge');
-
-    const exId = this.evaluator.currentExercise;
-    const exData = getExerciseDefinition(exId) || GYM_EXERCISES[exId] || PT_EXERCISES[exId];
-    const rawTip = exData ? exData.tip.replace(/<[^>]+>/g, '').replace(/^[⚡💪💡]\s*/, '') : 'Maintain joint alignment throughout.';
-
-    if (this.postRepCoachTipTimer) {
-      clearTimeout(this.postRepCoachTipTimer);
-    }
-
-    this.isShowingPostRepTip = true;
-    banner.style.display = 'flex';
-    banner.className = 'hud-guidance-banner info';
-    banner.classList.remove('hidden');
-
-    if (badgeEl) badgeEl.textContent = `COACH TIP · REP #${record.id} DONE`;
-    if (iconEl) iconEl.textContent = '💡';
-    if (msgEl) msgEl.textContent = `${record.status === 'PASS' ? 'Good rep! ' : ''}${rawTip}`;
-
-    // Display for 18 seconds (ample reading time) then gently fade out
-    this.postRepCoachTipTimer = setTimeout(() => {
-      this.dismissCoachTip();
-    }, 18000);
-  }
-
-  /**
-   * Display Coach Tip AFTER the entire exercise session has finished.
-   * ONLY displayed for live camera sessions if user actually completed reps (repCount > 0).
-   * NEVER displayed in simulation mode.
-   */
-  showPostSessionCoachTip() {
-    // Suppress coach tip popups during simulation
-    if (this.isSimulationRunning || !this.isCameraRunning) {
-      this.dismissCoachTip();
-      return;
-    }
-
-    const banner = document.getElementById('hudGuidanceBanner');
-    if (!banner) return;
-
-    const reps = this.evaluator ? this.evaluator.repCount : 0;
-    // DO NOT show exercise complete tip before user does anything!
-    if (reps === 0) {
-      this.dismissCoachTip();
-      return;
-    }
-
-    const msgEl = document.getElementById('hudGuidanceText');
-    const iconEl = document.getElementById('hudGuidanceIcon');
-    const badgeEl = document.getElementById('hudGuidanceBadge');
-
-    const exId = this.evaluator.currentExercise;
-    const exData = getExerciseDefinition(exId) || GYM_EXERCISES[exId] || PT_EXERCISES[exId];
-    const rawTip = exData ? exData.tip.replace(/<[^>]+>/g, '').replace(/^[⚡💪💡]\s*/, '') : 'Great work keeping disciplined form.';
-    const score = Math.round(this.evaluator.complianceScore);
-
-    this.isShowingPostRepTip = true;
-    banner.style.display = 'flex';
-    banner.className = 'hud-guidance-banner info show-post-tip';
-    banner.classList.remove('hidden');
-
-    if (badgeEl) badgeEl.textContent = 'COACH TIP · EXERCISE COMPLETE';
-    if (iconEl) iconEl.textContent = '💡';
-    const summaryMsg = `Exercise Finished (${reps} reps · ${score}% score). Coach Tip: ${rawTip}`;
-    if (msgEl) msgEl.textContent = summaryMsg;
-
-    // Automatically preserve in AI Coach chat history for reference
-    this.addChatBubble('assistant', `🏁 **Exercise Completed (${reps} reps · ${score}% compliance)**\n\n💡 **Biomechanical Coach Tip:** ${rawTip}`);
-
-    // Auto-dismiss after 20 seconds
-    if (this.postRepCoachTipTimer) clearTimeout(this.postRepCoachTipTimer);
-    this.postRepCoachTipTimer = setTimeout(() => {
-      this.dismissCoachTip();
-    }, 20000);
-  }
-
-  dismissCoachTip(e) {
-    if (e && e.stopPropagation) e.stopPropagation();
-    if (this.postRepCoachTipTimer) {
-      clearTimeout(this.postRepCoachTipTimer);
-      this.postRepCoachTipTimer = null;
-    }
-    this.isShowingPostRepTip = false;
-    const msgEl = document.getElementById('hudGuidanceText');
-    this.dismissedGuidanceText = msgEl ? msgEl.textContent : '';
-    this.isGuidanceDismissed = true;
-    const banner = document.getElementById('hudGuidanceBanner');
-    if (banner) {
-      banner.style.display = 'none';
-      banner.classList.add('hidden');
-    }
-  }
-
-  setDashboardTab(tabName) {
-    const tabs = ['waveform', 'standards', 'history'];
-    tabs.forEach(t => {
-      const btn = document.getElementById(`tabBtn${t.charAt(0).toUpperCase() + t.slice(1)}`);
-      const pane = document.getElementById(`deckPane${t.charAt(0).toUpperCase() + t.slice(1)}`);
-      if (btn) btn.classList.toggle('active', t === tabName);
-      if (pane) pane.classList.toggle('active', t === tabName);
-    });
-
-    if (tabName === 'waveform') {
-      const ex = GYM_EXERCISES[this.evaluator.currentExercise] || PT_EXERCISES[this.evaluator.currentExercise];
-      const targetDeg = this.evaluator.mode === 'gym' ? ((ex && ex.defaultTarget) || 90) : (this.evaluator.therapySafeThresholds[this.evaluator.currentExercise] || 90);
-      this.waveform.render(this.evaluator.mode, targetDeg);
-    }
-  }
-
-  openCoachDrawer() {
-    const drawer = document.getElementById('aiCoachDrawer');
-    const backdrop = document.getElementById('aiCoachBackdrop');
-    const fab = document.getElementById('aiCoachFabBtn');
-    if (drawer) {
-      drawer.classList.add('open');
-      drawer.style.display = 'flex';
-      drawer.style.transform = 'translateX(0)';
-      drawer.style.visibility = 'visible';
-      drawer.style.opacity = '1';
-    }
-    if (backdrop) {
-      backdrop.classList.add('open');
-      backdrop.style.display = 'block';
-      backdrop.style.opacity = '1';
-      backdrop.style.pointerEvents = 'auto';
-    }
-    if (fab) fab.classList.add('hidden-fab');
-
-    // Auto-focus chat input & scroll messages to bottom
-    const input = document.getElementById('aiChatInput');
-    if (input) setTimeout(() => input.focus(), 150);
-    const msgs = document.getElementById('aiChatMessages');
-    if (msgs) msgs.scrollTop = msgs.scrollHeight;
-  }
-
-  closeCoachDrawer() {
-    const drawer = document.getElementById('aiCoachDrawer');
-    const backdrop = document.getElementById('aiCoachBackdrop');
-    const fab = document.getElementById('aiCoachFabBtn');
-    if (drawer) {
-      drawer.classList.remove('open');
-      drawer.style.transform = 'translateX(105%)';
-    }
-    if (backdrop) {
-      backdrop.classList.remove('open');
-      backdrop.style.opacity = '0';
-      backdrop.style.pointerEvents = 'none';
-      setTimeout(() => {
-        if (!drawer || !drawer.classList.contains('open')) {
-          backdrop.style.display = 'none';
-        }
-      }, 300);
-    }
-    if (fab) fab.classList.remove('hidden-fab');
-
-    this.removeListeningIndicatorFromChat();
-  }
-
-  toggleCoachDrawer(forceOpen) {
-    const drawer = document.getElementById('aiCoachDrawer');
-    if (!drawer) return;
-    const isCurrentlyOpen = drawer.classList.contains('open') && drawer.style.transform === 'translateX(0px)';
-    const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !drawer.classList.contains('open');
-    if (shouldOpen) {
-      this.openCoachDrawer();
-    } else {
-      this.closeCoachDrawer();
-    }
-  }
-
-  toggleCoachSection() {
-    this.toggleCoachDrawer();
-  }
-
-  // ── Hands-Free "Hey Coach" & Interactive Call Mode ──────────────
-
-  toggleCallMode() {
-    if (this.isCallActive) {
-      this.endCallMode();
-    } else {
-      this.startCallMode();
-    }
-  }
-
-  startCallMode() {
-    if (this.isCallActive) return;
-    this.isCallActive = true;
-    this.isCallMuted = false;
-    this.callDurationSecs = 0;
-
-    // Visual updates on buttons & overlay
-    const callBtn = document.getElementById('callModeNavBtn');
-    const drawerCallBtn = document.getElementById('btnDrawerCallMode');
-    const overlay = document.getElementById('aiCallOverlay');
-    const timerEl = document.getElementById('callTimer');
-    const userSubEl = document.getElementById('callUserTranscript');
-    const coachSubEl = document.getElementById('callCoachResponse');
-    const subtitleLabel = document.getElementById('callSubtitleLabel');
-
-    if (callBtn) {
-      callBtn.classList.add('in-call');
-      const label = callBtn.querySelector('.call-nav-label');
-      if (label) label.textContent = 'In Call (Live)';
-    }
-    if (drawerCallBtn) {
-      drawerCallBtn.classList.add('active');
-      drawerCallBtn.textContent = '🔴 End Call';
-    }
-
-    if (overlay) {
-      overlay.classList.remove('hidden');
-      overlay.classList.remove('speaking');
-      overlay.classList.add('listening');
-    }
-    if (subtitleLabel) subtitleLabel.textContent = 'LISTENING TO YOU';
-    if (userSubEl) userSubEl.textContent = 'Say your form question or ask for real-time cues...';
-    if (coachSubEl) {
-      coachSubEl.style.display = 'none';
-      coachSubEl.textContent = '';
-    }
-    if (timerEl) timerEl.textContent = '00:00';
-
-    // Start elapsed call timer
-    clearInterval(this.callTimerInterval);
-    this.callTimerInterval = setInterval(() => {
-      this.callDurationSecs++;
-      const mins = String(Math.floor(this.callDurationSecs / 60)).padStart(2, '0');
-      const secs = String(this.callDurationSecs % 60).padStart(2, '0');
-      if (timerEl) timerEl.textContent = `${mins}:${secs}`;
-    }, 1000);
-
-    // Audio chime
-    if (this.audio) this.audio.playCoachWakeChime();
-
-    // Start full-duplex speech recognition
-    if (this.voiceListener) {
-      this.voiceListener.startCallMode();
-    }
-
-    // Opening greeting
-    const exDef = getExerciseDefinition(this.evaluator.currentExercise) || GYM_EXERCISES[this.evaluator.currentExercise] || PT_EXERCISES[this.evaluator.currentExercise];
-    const exName = (exDef && exDef.name) || 'your exercise';
-    const greeting = `Connected to Coach. I am watching your ${exName}. What can I help you adjust?`;
-
-    setTimeout(() => {
-      if (this.isCallActive && this.voice && this._voiceEnabled) {
-        if (coachSubEl) {
-          coachSubEl.textContent = `"${greeting}"`;
-          coachSubEl.style.display = 'block';
-        }
-        this.voice.speak(greeting);
-      }
-    }, 350);
-
-    this.showToast('Call Mode Active: Talk freely with your AI Coach!', '📞');
-  }
-
-  endCallMode() {
-    if (!this.isCallActive) return;
-    this.isCallActive = false;
-    clearInterval(this.callTimerInterval);
-
-    // Stop speaking & listening
-    if (this.voice) this.voice.stop();
-    if (this.voiceListener) this.voiceListener.stopCallMode();
-
-    const callBtn = document.getElementById('callModeNavBtn');
-    const drawerCallBtn = document.getElementById('btnDrawerCallMode');
-    const overlay = document.getElementById('aiCallOverlay');
-
-    if (callBtn) {
-      callBtn.classList.remove('in-call');
-      const label = callBtn.querySelector('.call-nav-label');
-      if (label) label.textContent = 'Talk to Coach';
-    }
-    if (drawerCallBtn) {
-      drawerCallBtn.classList.remove('active');
-      drawerCallBtn.textContent = '📞 Call Mode';
-    }
-    if (overlay) {
-      overlay.classList.add('hidden');
-      overlay.classList.remove('speaking', 'listening');
-    }
-
-    this.showToast('Coaching Call Ended.', '🛑');
-  }
-
-  toggleCallMute() {
-    if (!this.isCallActive) return;
-    this.isCallMuted = !this.isCallMuted;
-
-    if (this.voiceListener) {
-      if (this.isCallMuted) {
-        this.voiceListener.stop();
-      } else {
-        this.voiceListener.startCallMode();
-      }
-    }
-
-    const icon = document.getElementById('callMuteIcon');
-    const label = document.getElementById('callMuteLabel');
-    if (icon) icon.textContent = this.isCallMuted ? '🔇' : '🎙️';
-    if (label) label.textContent = this.isCallMuted ? 'Unmute' : 'Mute';
-    this.showToast(this.isCallMuted ? 'Microphone Muted' : 'Microphone Active', this.isCallMuted ? '🔇' : '🎙️');
-  }
-
-  interruptCoach() {
-    if (this.voice) {
-      this.voice.stop();
-    }
-    if (this.voiceListener) {
-      this.voiceListener.setCoachSpeaking(false);
-    }
-    this.updateCallSpeakingState(false);
-    this.showToast('Coach interrupted.', '⚡');
-  }
-
-  handleUserBargeIn(text) {
-    if (this.voice && this.voice.isSpeaking) {
-      this.voice.stop();
-      if (this.voiceListener) {
-        this.voiceListener.setCoachSpeaking(false);
-      }
-      this.updateCallSpeakingState(false);
-    }
-  }
-
-  handleCallSpeechComplete(query) {
-    if (!this.isCallActive || !query || query.trim().length < 2) return;
-
-    const userSubEl = document.getElementById('callUserTranscript');
-    const subtitleLabel = document.getElementById('callSubtitleLabel');
-    if (userSubEl) userSubEl.textContent = `"${query.trim()}"`;
-    if (subtitleLabel) subtitleLabel.textContent = 'COACH THINKING...';
-
-    // Submit question directly to AI with isVoiceCall flag true
-    this.sendChatMessage(query.trim(), true);
-  }
-
-  updateCallSpeakingState(isSpeaking) {
-    const overlay = document.getElementById('aiCallOverlay');
-    const subtitleLabel = document.getElementById('callSubtitleLabel');
-
-    if (overlay) {
-      if (isSpeaking) {
-        overlay.classList.add('speaking');
-        overlay.classList.remove('listening');
-      } else {
-        overlay.classList.remove('speaking');
-        overlay.classList.add('listening');
-      }
-    }
-
-    if (subtitleLabel && this.isCallActive) {
-      subtitleLabel.textContent = isSpeaking ? 'COACH SPEAKING' : 'LISTENING TO YOU';
-    }
-  }
-
-  setVoiceRate(rate) {
-    if (this.voice) {
-      this.voice.setRate(rate);
-      this.showToast(`Voice speed: ${rate}x`, '⚡');
-    }
-  }
-
-  handleVoiceWakeButtonClick() {
-    if (!this.voiceListener) return;
-
-    const drawer = document.getElementById('aiCoachDrawer');
-    const isDrawerOpen = drawer && drawer.classList.contains('open');
-
-    // If drawer is closed, clicking "Hey Coach" button immediately opens AI Coach and listens!
-    if (!isDrawerOpen) {
-      this.openCoachDrawer();
-      if (this.audio) this.audio.playCoachWakeChime();
-      this.voiceListener.startListeningQuery();
-      this.showListeningIndicatorInChat();
-      this.showVoiceHudToast('Listening to your form question...');
-      return;
-    }
-
-    // If drawer is already open, toggle hands-free listening state
-    this.toggleVoiceWake();
-  }
-
-  handleMicButtonClick() {
-    if (!this.voiceListener) return;
-
-    if (this.voiceListener.isAwaitingQuestion) {
-      // User tapped to stop recording and send
-      this.voiceListener.stopListeningQuery();
-      this.removeListeningIndicatorFromChat();
-      const input = document.getElementById('aiChatInput');
-      if (input && input.value.trim().length > 1) {
-        this.sendChatMessage(input.value.trim());
-        input.value = '';
-      }
-    } else {
-      // User tapped to start speaking directly
-      this.openCoachDrawer();
-      if (this.audio) this.audio.playCoachWakeChime();
-      this.voiceListener.startListeningQuery();
-      this.showListeningIndicatorInChat();
-      this.showVoiceHudToast('Listening... Speak your form question');
-    }
-  }
-
-  toggleVoiceWake() {
-    if (!this.voiceListener) return;
-    const isNowActive = this.voiceListener.toggle();
-    const navBtn = document.getElementById('voiceWakeBtn');
-    const drawerBtn = document.getElementById('btnDrawerVoiceWake');
-
-    if (navBtn) {
-      navBtn.classList.toggle('active', isNowActive);
-      const label = navBtn.querySelector('.voice-wake-label');
-      if (label) label.textContent = isNowActive ? '"Hey Coach"' : '"Hey Coach" Muted';
-    }
-    if (drawerBtn) {
-      drawerBtn.classList.toggle('active', isNowActive);
-      drawerBtn.textContent = isNowActive ? '🎙️ "Hey Coach" ON' : '🎙️ "Hey Coach" OFF';
-    }
-
-    this.showToast(
-      isNowActive ? 'Hands-Free Voice Active: Say "Hey Coach" anytime!' : 'Hands-Free Voice Muted',
-      isNowActive ? '🎙️' : '🔇'
-    );
-  }
-
-  handleWakeDetected(initialQuery) {
-    if (this.audio) {
-      this.audio.playCoachWakeChime();
-    }
-
-    this.openCoachDrawer();
-    this.showVoiceHudToast(initialQuery || 'Listening for your question...');
-    this.showListeningIndicatorInChat();
-  }
-
-  handleWakeWordQuery(query) {
-    this.removeListeningIndicatorFromChat();
-    this.openCoachDrawer();
-
-    if (query && query.trim().length > 1) {
-      setTimeout(() => {
-        this.sendChatMessage(query.trim(), false);
-      }, 200);
-    }
-  }
-
-  showListeningIndicatorInChat() {
-    const container = document.getElementById('aiChatMessages');
-    if (!container) return;
-
-    this.removeListeningIndicatorFromChat();
-
-    const indicator = document.createElement('div');
-    indicator.id = 'aiChatListeningIndicator';
-    indicator.className = 'ai-listening-indicator';
-    indicator.innerHTML = `
-      <span class="ai-sparkle-dot">🎙️</span>
-      <span id="aiChatListeningText">Listening... Speak your form question</span>
-      <div style="display: flex; gap: 4px; margin-left: auto;">
-        <div class="listening-wave-dot"></div>
-        <div class="listening-wave-dot"></div>
-        <div class="listening-wave-dot"></div>
-      </div>
-    `;
-    container.appendChild(indicator);
-    container.scrollTop = container.scrollHeight;
-  }
-
-  removeListeningIndicatorFromChat() {
-    const indicator = document.getElementById('aiChatListeningIndicator');
-    if (indicator) indicator.remove();
-  }
-
-  updateVoiceWakeUI(isListening, isAwaitingQuestion, isCallMode) {
-    const navBtn = document.getElementById('voiceWakeBtn');
-    const drawerMicBtn = document.getElementById('btnDrawerMic');
-    const drawerBtn = document.getElementById('btnDrawerVoiceWake');
-
-    if (navBtn) {
-      navBtn.classList.toggle('listening', Boolean(isAwaitingQuestion));
-      navBtn.classList.toggle('active', Boolean(isListening));
-      const label = navBtn.querySelector('.voice-wake-label');
-      if (label) {
-        if (isAwaitingQuestion) {
-          label.textContent = 'Listening...';
-        } else if (isListening) {
-          label.textContent = '"Hey Coach"';
-        } else {
-          label.textContent = '"Hey Coach" Muted';
-        }
-      }
-    }
-
-    if (drawerMicBtn) {
-      drawerMicBtn.classList.toggle('listening', Boolean(isAwaitingQuestion));
-      drawerMicBtn.title = isAwaitingQuestion ? 'Listening... Tap to send' : 'Speak to Coach (Push-to-Talk)';
-    }
-
-    if (drawerBtn) {
-      drawerBtn.classList.toggle('active', Boolean(isListening));
-      drawerBtn.textContent = isListening ? '🎙️ "Hey Coach" ON' : '🎙️ "Hey Coach" OFF';
-    }
-
-    const toast = document.getElementById('voiceHudToast');
-    if (toast && !isCallMode) {
-      if (isAwaitingQuestion) {
-        toast.classList.remove('hidden');
-        const transcriptEl = document.getElementById('voiceHudTranscript');
-        if (transcriptEl) transcriptEl.textContent = 'Say your form question or cue...';
-      } else {
-        setTimeout(() => toast.classList.add('hidden'), 2500);
-      }
-    }
-
-    if (!isAwaitingQuestion) {
-      this.removeListeningIndicatorFromChat();
-    }
-  }
-
-  updateVoiceInterimHUD(transcript, isAwaitingQuestion) {
-    const transcriptEl = document.getElementById('voiceHudTranscript');
-    if (transcriptEl && transcript) {
-      transcriptEl.textContent = `"${transcript}"`;
-    }
-    const listeningText = document.getElementById('aiChatListeningText');
-    if (listeningText && transcript) {
-      listeningText.textContent = `"${transcript}"`;
-    }
-    const chatInput = document.getElementById('aiChatInput');
-    if (chatInput && isAwaitingQuestion && transcript) {
-      chatInput.value = transcript;
-    }
-    const callUserTranscript = document.getElementById('callUserTranscript');
-    if (callUserTranscript && this.isCallActive && transcript) {
-      callUserTranscript.textContent = `"${transcript}"`;
-    }
-  }
-
-  showVoiceHudToast(text) {
-    const toast = document.getElementById('voiceHudToast');
-    const transcriptEl = document.getElementById('voiceHudTranscript');
-    if (toast) {
-      toast.classList.remove('hidden');
-      if (transcriptEl) transcriptEl.textContent = `"${text}"`;
-      setTimeout(() => toast.classList.add('hidden'), 3500);
-    }
-  }
-
-  // ── AI Coach Chat System ──────────────────────────────────────
-
-  async sendChatMessage(userText, isVoiceCall = false) {
-    if (!userText || !userText.trim() || this.gemini.isLoading) return;
-    userText = userText.trim();
-
-    const input = document.getElementById('aiChatInput');
-    const sendBtn = document.getElementById('btnSendChat');
-    if (input) input.value = '';
-    if (sendBtn) sendBtn.disabled = true;
-
-    // Add user bubble
-    this.addChatBubble('user', userText);
-
-    // Show typing indicator in chat and call overlay
-    this.showTypingIndicator(true);
-    const callSubtitleLabel = document.getElementById('callSubtitleLabel');
-    if (callSubtitleLabel && this.isCallActive) {
-      callSubtitleLabel.textContent = 'COACH THINKING...';
-    }
-
-    // Build session context
-    const exDef = getExerciseDefinition(this.evaluator.currentExercise) || GYM_EXERCISES[this.evaluator.currentExercise] || PT_EXERCISES[this.evaluator.currentExercise];
-    const exName = (exDef && exDef.name) || this.evaluator.currentExercise;
-    const sessionCtx = {
-      exercise: exName,
-      mode: this.evaluator.mode,
-      reps: this.evaluator.repCount,
-      peakRom: `${this.evaluator.peakRom}°`,
-      compliance: Math.round(this.evaluator.complianceScore),
-      faults: this.evaluator.faultCount
-    };
-
-    const result = await this.gemini.chat(userText, sessionCtx, isVoiceCall);
-
-    this.showTypingIndicator(false);
-    if (sendBtn) sendBtn.disabled = false;
-
-    let responseText = '';
-    if (result.success && result.text) {
-      responseText = result.text;
-    } else {
-      responseText = this.gemini.generateSmartFallback(userText, sessionCtx, isVoiceCall);
-    }
-
-    this.addChatBubble('assistant', responseText);
-
-    // Update Call Overlay subtitle
-    const callCoachResponse = document.getElementById('callCoachResponse');
-    if (callCoachResponse && this.isCallActive) {
-      callCoachResponse.textContent = `"${this.voice ? this.voice.cleanTextForSpeech(responseText) : responseText}"`;
-      callCoachResponse.style.display = 'block';
-    }
-
-    // Speak response if voice is enabled or in active call
-    if ((this._voiceEnabled || this.isCallActive) && this.voice) {
-      this.voice.speak(responseText);
-    }
-  }
-
-  async requestAutoAnalysis() {
-    if (this.gemini.isLoading) return;
-
-    const sendBtn = document.getElementById('btnSendChat');
-    if (sendBtn) sendBtn.disabled = true;
-
-    // Add auto-analysis user message
-    this.addChatBubble('user', '📊 Analyze my current session');
-    this.showTypingIndicator(true);
-
-    const exDef = getExerciseDefinition(this.evaluator.currentExercise) || GYM_EXERCISES[this.evaluator.currentExercise] || PT_EXERCISES[this.evaluator.currentExercise];
-    const exName = (exDef && exDef.name) || this.evaluator.currentExercise;
-
-    const sessionData = {
-      exercise: exName,
-      mode: this.evaluator.mode,
-      reps: this.evaluator.repCount,
-      peakRom: `${this.evaluator.peakRom}°`,
-      compliance: Math.round(this.evaluator.complianceScore),
-      faults: this.evaluator.faultCount,
-      history: this.evaluator.repHistory
-    };
-
-    const result = await this.gemini.analyzeSession(sessionData);
-
-    this.showTypingIndicator(false);
-    if (sendBtn) sendBtn.disabled = false;
-
-    if (result.success && result.text) {
-      this.addChatBubble('assistant', result.text);
-      if (this._voiceEnabled && this.voice) {
-        const spoken = result.text.replace(/[*_#•]/g, '').replace(/⚡|⚠️|🌟|👍|🤖/g, '');
-        this.voice.speak(spoken);
-      }
-      this.showToast('AI Coach analysis ready', '✨');
-    } else {
-      const fallbackResponse = this.gemini.generateSmartFallback('Analyze my workout session', sessionData);
-      this.addChatBubble('assistant', fallbackResponse);
-      if (this._voiceEnabled && this.voice) {
-        const spoken = fallbackResponse.replace(/[*_#•]/g, '').replace(/⚡|⚠️|🌟|👍|🤖/g, '');
-        this.voice.speak(spoken);
-      }
-      this.showToast('AI Coach analysis ready', '✨');
-    }
-  }
-
-  addChatBubble(role, text) {
-    const container = document.getElementById('aiChatMessages');
-    if (!container) return;
-
-    const bubble = document.createElement('div');
-    bubble.className = `ai-chat-bubble ${role}`;
-
-    const avatar = document.createElement('div');
-    avatar.className = 'bubble-avatar';
-    avatar.textContent = role === 'assistant' ? '🤖' : '🧑';
-
-    const content = document.createElement('div');
-    content.className = 'bubble-content';
-
-    // Parse markdown-like formatting
-    const formatted = text
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/\n/g, '<br>');
-    content.innerHTML = `<p>${formatted}</p>`;
-
-    bubble.appendChild(avatar);
-    bubble.appendChild(content);
-    container.appendChild(bubble);
-
-    // Auto-scroll to bottom
-    container.scrollTop = container.scrollHeight;
-  }
-
-  showTypingIndicator(show) {
-    const container = document.getElementById('aiChatMessages');
-    if (!container) return;
-
-    // Remove existing indicator
-    const existing = container.querySelector('.ai-typing-bubble');
-    if (existing) existing.remove();
-
-    if (show) {
-      const bubble = document.createElement('div');
-      bubble.className = 'ai-chat-bubble assistant ai-typing-bubble';
-      bubble.innerHTML = `
-        <div class="bubble-avatar">🤖</div>
-        <div class="bubble-content">
-          <div class="ai-typing-indicator">
-            <div class="dot"></div>
-            <div class="dot"></div>
-            <div class="dot"></div>
-          </div>
-        </div>
-      `;
-      container.appendChild(bubble);
-      container.scrollTop = container.scrollHeight;
-    }
-  }
-
-  toggleVoice() {
-    this._voiceEnabled = !this._voiceEnabled;
-    const btn = document.getElementById('btnVoiceToggle');
-    if (btn) {
-      btn.classList.toggle('active', this._voiceEnabled);
-      btn.textContent = this._voiceEnabled ? '🔊 Voice' : '🔇 Voice';
-    }
-    if (!this._voiceEnabled && this.voice) {
-      this.voice.stop();
-    }
-    this.showToast(this._voiceEnabled ? 'Voice responses enabled' : 'Voice responses muted', this._voiceEnabled ? '🔊' : '🔇');
-  }
-
-  clearChat() {
-    const container = document.getElementById('aiChatMessages');
-    if (container) {
-      container.innerHTML = `
-        <div class="ai-chat-bubble assistant">
-          <div class="bubble-avatar">🤖</div>
-          <div class="bubble-content">
-            <p>Chat cleared! How can I help you with your workout?</p>
-          </div>
-        </div>
-      `;
-    }
-    this.gemini.clearHistory();
-    this.showToast('Chat history cleared', '🗑️');
-  }
-
-  promptApiKey() {
-    const currentCustom = localStorage.getItem('flexalign_gemini_api_key') || '';
-    const newKey = prompt(
-      'Configure Google Gemini API Key:\n\n' +
-      'Paste your Gemini API key (from https://aistudio.google.com/app/apikey) to use your dedicated quota.\n' +
-      'Leave empty and press OK to restore default shared key.',
-      currentCustom
-    );
-
-    if (newKey !== null) {
-      this.gemini.setApiKey(newKey);
-      if (newKey.trim()) {
-        this.showToast('Custom Gemini API Key active! 🔑', '✨');
-      } else {
-        this.showToast('Using default shared Gemini Key', 'ℹ️');
-      }
-    }
-  }
+  // ── Mode & Exercise Management ──────────────────────────────────
 
   setMode(mode) {
-    // If streams or 3D simulation are running, cleanly stop them before swapping modes
-    // so no orphaned simulation loops or background motion persist behind the new mode splash
     if (this.isSimulationRunning || this.isCameraRunning || this.isStreaming) {
       this.stopStreams(true);
     }
@@ -1228,53 +208,44 @@ export class FlexAlignApp {
     const gymSection = document.getElementById('gymControlsSection');
     const selectEl = document.getElementById('exerciseSelect');
 
-    // 1. Swap the global theme
     document.body.className = mode === 'gym' ? 'theme-gym' : 'theme-pt';
 
-    // 2. Setup mode-specific variables
-    let exerciseDict = getAllExercisesForMode(mode);
-    
-    // Clear and repopulate dropdown
-    selectEl.innerHTML = '';
-    Object.keys(exerciseDict).forEach(key => {
-      const opt = document.createElement('option');
-      opt.value = key;
-      const isCustomPrefix = exerciseDict[key].isCustom ? '✨ ' : '';
-      opt.textContent = `${isCustomPrefix}${mode === 'gym' ? '🏋️' : '🩺'} ${exerciseDict[key].name}`;
-      selectEl.appendChild(opt);
-    });
+    const exerciseDict = getAllExercisesForMode(mode);
+    if (selectEl) {
+      selectEl.innerHTML = '';
+      Object.keys(exerciseDict).forEach(key => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        const isCustomPrefix = exerciseDict[key].isCustom ? '✨ ' : '';
+        opt.textContent = `${isCustomPrefix}${mode === 'gym' ? '🏋️' : '🩺'} ${exerciseDict[key].name}`;
+        selectEl.appendChild(opt);
+      });
+    }
 
     if (mode === 'gym') {
-      gymBtn.classList.add('active');
-      ptBtn.classList.remove('active');
-      modeCard.className = 'card mode-custom-card gym-mode-theme';
-      ptSection.style.display = 'none';
-      gymSection.style.display = 'block';
-      document.getElementById('modeCardTitle').textContent = 'Gym Mode Standards & Strict Form Criteria';
-      document.getElementById('modeBadgePill').textContent = 'FORM STRICT';
-      document.getElementById('modeBadgePill').className = 'status-pill pass';
-      
-      // Update Metrics Titles
-      document.getElementById('repCountTitle').textContent = 'Completed Reps';
-      document.getElementById('peakRomTitle').textContent = 'Peak ROM Reached';
-      document.getElementById('secondaryMetricTitle').textContent = 'Cadence / Tempo';
-      document.getElementById('faultCountTitle').textContent = 'Form Faults';
+      if (gymBtn) gymBtn.classList.add('active');
+      if (ptBtn) ptBtn.classList.remove('active');
+      if (modeCard) modeCard.className = 'card mode-custom-card gym-mode-theme';
+      if (ptSection) ptSection.style.display = 'none';
+      if (gymSection) gymSection.style.display = 'block';
 
-      // Update Title Screen (Splash) for Gym Field
+      const titleEl = document.getElementById('modeCardTitle');
+      if (titleEl) titleEl.textContent = 'Gym Mode Standards & Strict Form Criteria';
+      const pill = document.getElementById('modeBadgePill');
+      if (pill) { pill.textContent = 'FORM STRICT'; pill.className = 'status-pill pass'; }
+
+      const rc = document.getElementById('repCountTitle'); if (rc) rc.textContent = 'Completed Reps';
+      const pr = document.getElementById('peakRomTitle'); if (pr) pr.textContent = 'Peak ROM Reached';
+      const sm = document.getElementById('secondaryMetricTitle'); if (sm) sm.textContent = 'Cadence / Tempo';
+      const fc = document.getElementById('faultCountTitle'); if (fc) fc.textContent = 'Form Faults';
+
       const splash = document.getElementById('viewportSplash');
       if (splash) {
         splash.className = 'viewport-splash gym-splash';
-        const badge = document.getElementById('splashModeBadge');
-        if (badge) {
-          badge.className = 'splash-mode-badge gym-badge';
-          badge.innerHTML = '⚡ ATHLETIC KINEMATICS &amp; FORM';
-        }
-        const icon = document.getElementById('splashIcon');
-        if (icon) icon.textContent = '🏋️';
-        const title = document.getElementById('splashTitle');
-        if (title) title.textContent = 'Strength & Form Kinematics';
-        const desc = document.getElementById('splashDesc');
-        if (desc) desc.textContent = 'Precision rep tracking, parallel depth validation, and explosive lockout telemetry. Eliminate form breakdown under load.';
+        const badge = document.getElementById('splashModeBadge'); if (badge) { badge.className = 'splash-mode-badge gym-badge'; badge.innerHTML = '⚡ ATHLETIC KINEMATICS &amp; FORM'; }
+        const icon = document.getElementById('splashIcon'); if (icon) icon.textContent = '🏋️';
+        const title = document.getElementById('splashTitle'); if (title) title.textContent = 'Strength & Form Kinematics';
+        const desc = document.getElementById('splashDesc'); if (desc) desc.textContent = 'Precision rep tracking, parallel depth validation, and explosive lockout telemetry. Eliminate form breakdown under load.';
         const chips = document.getElementById('splashChips');
         if (chips) {
           chips.innerHTML = `
@@ -1283,48 +254,37 @@ export class FlexAlignApp {
             <span class="splash-chip"><span>⚠️</span> Real-time Fault Detection</span>
           `;
         }
-        const camBtnText = document.getElementById('splashCamBtnText');
-        if (camBtnText) camBtnText.textContent = 'Start Workout Cam';
-        const camBtnIcon = document.getElementById('splashCamBtnIcon');
-        if (camBtnIcon) camBtnIcon.textContent = '🏋️';
-        const uploadBtnText = document.getElementById('splashUploadBtnText');
-        if (uploadBtnText) uploadBtnText.textContent = 'Upload Lift Video';
-        const simBtnText = document.getElementById('splashSimBtnText');
-        if (simBtnText) simBtnText.textContent = 'Run 3D Lift Simulation';
+        const cbt = document.getElementById('splashCamBtnText'); if (cbt) cbt.textContent = 'Start Workout Cam';
+        const cbi = document.getElementById('splashCamBtnIcon'); if (cbi) cbi.textContent = '🏋️';
+        const ubt = document.getElementById('splashUploadBtnText'); if (ubt) ubt.textContent = 'Upload Lift Video';
+        const sbt = document.getElementById('splashSimBtnText'); if (sbt) sbt.textContent = 'Run 3D Lift Simulation';
       }
 
       this.showToast('Switched to 🏋️ Fitness / Gym Mode', '⚡');
     } else {
-      ptBtn.classList.add('active');
-      gymBtn.classList.remove('active');
-      modeCard.className = 'card mode-custom-card pt-mode-theme';
-      ptSection.style.display = 'block';
-      gymSection.style.display = 'none';
-      document.getElementById('modeCardTitle').textContent = 'Physical Therapy Target Settings';
-      document.getElementById('modeBadgePill').textContent = 'CLINICAL ROM';
-      document.getElementById('modeBadgePill').className = 'status-pill pass';
+      if (ptBtn) ptBtn.classList.add('active');
+      if (gymBtn) gymBtn.classList.remove('active');
+      if (modeCard) modeCard.className = 'card mode-custom-card pt-mode-theme';
+      if (ptSection) ptSection.style.display = 'block';
+      if (gymSection) gymSection.style.display = 'none';
 
-      // Update Metrics Titles
-      document.getElementById('repCountTitle').textContent = 'Completed Cycles';
-      document.getElementById('peakRomTitle').textContent = 'Current Extension';
-      document.getElementById('secondaryMetricTitle').textContent = 'Hold Time';
-      document.getElementById('faultCountTitle').textContent = 'Safety Warnings';
+      const titleEl = document.getElementById('modeCardTitle');
+      if (titleEl) titleEl.textContent = 'Physical Therapy Target Settings';
+      const pill = document.getElementById('modeBadgePill');
+      if (pill) { pill.textContent = 'CLINICAL ROM'; pill.className = 'status-pill pass'; }
 
-      // Update Title Screen (Splash) for Physical Therapy Field
+      const rc = document.getElementById('repCountTitle'); if (rc) rc.textContent = 'Completed Cycles';
+      const pr = document.getElementById('peakRomTitle'); if (pr) pr.textContent = 'Current Extension';
+      const sm = document.getElementById('secondaryMetricTitle'); if (sm) sm.textContent = 'Hold Time';
+      const fc = document.getElementById('faultCountTitle'); if (fc) fc.textContent = 'Safety Warnings';
+
       const splash = document.getElementById('viewportSplash');
       if (splash) {
         splash.className = 'viewport-splash pt-splash';
-        const badge = document.getElementById('splashModeBadge');
-        if (badge) {
-          badge.className = 'splash-mode-badge pt-badge';
-          badge.innerHTML = '🩺 CLINICAL REHABILITATION &amp; ROM';
-        }
-        const icon = document.getElementById('splashIcon');
-        if (icon) icon.textContent = '🩺';
-        const title = document.getElementById('splashTitle');
-        if (title) title.textContent = 'Clinical ROM & Physical Therapy';
-        const desc = document.getElementById('splashDesc');
-        if (desc) desc.textContent = 'Precision joint goniometry, safe flexion excursion limits, and compensatory movement alerts tailored for active rehabilitation.';
+        const badge = document.getElementById('splashModeBadge'); if (badge) { badge.className = 'splash-mode-badge pt-badge'; badge.innerHTML = '🩺 CLINICAL REHABILITATION &amp; ROM'; }
+        const icon = document.getElementById('splashIcon'); if (icon) icon.textContent = '🩺';
+        const title = document.getElementById('splashTitle'); if (title) title.textContent = 'Clinical ROM & Physical Therapy';
+        const desc = document.getElementById('splashDesc'); if (desc) desc.textContent = 'Precision joint goniometry, safe flexion excursion limits, and compensatory movement alerts tailored for active rehabilitation.';
         const chips = document.getElementById('splashChips');
         if (chips) {
           chips.innerHTML = `
@@ -1333,20 +293,15 @@ export class FlexAlignApp {
             <span class="splash-chip"><span>📋</span> Clinical Excursion Log</span>
           `;
         }
-        const camBtnText = document.getElementById('splashCamBtnText');
-        if (camBtnText) camBtnText.textContent = 'Start Therapy Cam';
-        const camBtnIcon = document.getElementById('splashCamBtnIcon');
-        if (camBtnIcon) camBtnIcon.textContent = '🩺';
-        const uploadBtnText = document.getElementById('splashUploadBtnText');
-        if (uploadBtnText) uploadBtnText.textContent = 'Upload Rehab Video';
-        const simBtnText = document.getElementById('splashSimBtnText');
-        if (simBtnText) simBtnText.textContent = 'Run 3D Rehab Simulation';
+        const cbt = document.getElementById('splashCamBtnText'); if (cbt) cbt.textContent = 'Start Therapy Cam';
+        const cbi = document.getElementById('splashCamBtnIcon'); if (cbi) cbi.textContent = '🩺';
+        const ubt = document.getElementById('splashUploadBtnText'); if (ubt) ubt.textContent = 'Upload Rehab Video';
+        const sbt = document.getElementById('splashSimBtnText'); if (sbt) sbt.textContent = 'Run 3D Rehab Simulation';
       }
 
       this.showToast('Switched to 🩺 Physical Therapy Mode', '🩺');
     }
 
-    // Auto-select the first exercise of the new mode
     const firstExercise = Object.keys(exerciseDict)[0];
     this.setExercise(firstExercise);
   }
@@ -1355,8 +310,7 @@ export class FlexAlignApp {
     const ex = getExerciseDefinition(exerciseId) || GYM_EXERCISES[exerciseId] || PT_EXERCISES[exerciseId];
     if (!ex) return;
 
-    // Clear any previous post-rep tip banner so newly selected exercise starts clean
-    this.dismissCoachTip();
+    this.hudManager.dismissCoachTip();
 
     this.evaluator.setExercise(exerciseId);
     this.evaluator.resetAll();
@@ -1366,20 +320,14 @@ export class FlexAlignApp {
       selectEl.value = exerciseId;
     }
 
-    document.getElementById('activeJointName').textContent = ex.jointTitle;
-    document.getElementById('hudActiveJointBadge').textContent = ex.hudBadge;
-
-    const repFooter = document.getElementById('repTargetFooter');
-    if (repFooter) repFooter.textContent = ex.repFooter;
+    const aj = document.getElementById('activeJointName'); if (aj) aj.textContent = ex.jointTitle;
+    const hj = document.getElementById('hudActiveJointBadge'); if (hj) hj.textContent = ex.hudBadge;
+    const rf = document.getElementById('repTargetFooter'); if (rf) rf.textContent = ex.repFooter;
 
     if (this.evaluator.mode === 'gym') {
-      const gymCriterionEl = document.getElementById('gymDepthCriterion');
-      const gymLockoutEl = document.getElementById('gymLockoutCriterion');
-      if (gymCriterionEl) gymCriterionEl.textContent = ex.targetCriterion;
-      if (gymLockoutEl) gymLockoutEl.textContent = ex.lockoutCriterion;
-      const gymMovementTip = document.getElementById('gymMovementTip');
-      if (gymMovementTip && ex.tip) gymMovementTip.innerHTML = ex.tip;
-      // Initialize default targets if not present
+      const gdc = document.getElementById('gymDepthCriterion'); if (gdc) gdc.textContent = ex.targetCriterion;
+      const glc = document.getElementById('gymLockoutCriterion'); if (glc) glc.textContent = ex.lockoutCriterion;
+      const gmt = document.getElementById('gymMovementTip'); if (gmt && ex.tip) gmt.innerHTML = ex.tip;
       if (!this.evaluator.gymTargets) this.evaluator.gymTargets = {};
       this.evaluator.gymTargets[exerciseId] = ex.defaultTarget;
     } else {
@@ -1388,265 +336,88 @@ export class FlexAlignApp {
       if (!this.evaluator.therapySafeThresholds[exerciseId]) {
         this.evaluator.therapySafeThresholds[exerciseId] = ex.defaultSafeThreshold;
       }
-      slider.min = ex.ptSliderMin;
-      slider.max = ex.ptSliderMax;
-      slider.value = this.evaluator.therapySafeThresholds[exerciseId];
-      thresholdBadge.textContent = `${this.evaluator.therapySafeThresholds[exerciseId]}°`;
-      document.getElementById('thresholdSliderLabel').textContent = ex.sliderLabel;
-      document.getElementById('ptClinicalTip').innerHTML = ex.tip;
+      if (slider) {
+        slider.min = ex.ptSliderMin;
+        slider.max = ex.ptSliderMax;
+        slider.value = this.evaluator.therapySafeThresholds[exerciseId];
+      }
+      if (thresholdBadge) thresholdBadge.textContent = `${this.evaluator.therapySafeThresholds[exerciseId]}°`;
+      const tsl = document.getElementById('thresholdSliderLabel'); if (tsl) tsl.textContent = ex.sliderLabel;
+      const pct = document.getElementById('ptClinicalTip'); if (pct) pct.innerHTML = ex.tip;
     }
 
     const targetDeg = this.evaluator.mode === 'gym' ? ex.defaultTarget : this.evaluator.therapySafeThresholds[exerciseId];
     this.waveform.render(this.evaluator.mode, targetDeg);
     this.showToast(`Exercise: ${ex.name.toUpperCase()}`, '🎯');
 
-    // Reset live counter badges for newly selected exercise
-    document.getElementById('repCountVal').textContent = '0';
-    document.getElementById('peakRomVal').textContent = '0°';
-    document.getElementById('faultCountVal').textContent = '0';
-    document.getElementById('liveAngleValue').textContent = '0°';
+    const rc = document.getElementById('repCountVal'); if (rc) rc.textContent = '0';
+    const pr = document.getElementById('peakRomVal'); if (pr) pr.textContent = '0°';
+    const fc = document.getElementById('faultCountVal'); if (fc) fc.textContent = '0';
+    const la = document.getElementById('liveAngleValue'); if (la) la.textContent = '0°';
   }
 
   setSide(side) {
     this.sidePreference = side;
     document.querySelectorAll('.side-chip').forEach(c => c.classList.remove('active'));
-    if (side === 'auto') document.getElementById('sideAuto').classList.add('active');
-    if (side === 'left') document.getElementById('sideLeft').classList.add('active');
-    if (side === 'right') document.getElementById('sideRight').classList.add('active');
+    if (side === 'auto') { const el = document.getElementById('sideAuto'); if (el) el.classList.add('active'); }
+    if (side === 'left') { const el = document.getElementById('sideLeft'); if (el) el.classList.add('active'); }
+    if (side === 'right') { const el = document.getElementById('sideRight'); if (el) el.classList.add('active'); }
   }
 
   updateSafeThreshold(value) {
     this.evaluator.updateSafeThreshold(this.evaluator.currentExercise, value);
-    document.getElementById('thresholdDisplayBadge').textContent = `${value}°`;
+    const tb = document.getElementById('thresholdDisplayBadge');
+    if (tb) tb.textContent = `${value}°`;
     this.waveform.render(this.evaluator.mode, parseInt(value, 10));
   }
 
   toggleSound() {
     const active = this.audio.toggleSound();
     const btn = document.getElementById('soundToggleBtn');
-    btn.classList.toggle('active', active);
-    document.getElementById('soundIcon').textContent = active ? '🔊' : '🔇';
+    if (btn) btn.classList.toggle('active', active);
+    const icon = document.getElementById('soundIcon');
+    if (icon) icon.textContent = active ? '🔊' : '🔇';
     this.showToast(active ? 'Audio FX Enabled' : 'Audio FX Muted', active ? '🔊' : '🔇');
   }
 
+  // ── Stream & Simulation Lifecycles ──────────────────────────────
+
   async startCamera() {
-    this.stopStreams();
-    this.audio.init();
-
-    document.getElementById('viewportSplash').classList.add('hidden');
-    document.getElementById('startCamBtn').style.display = 'none';
-    document.getElementById('stopCamBtn').style.display = 'inline-flex';
-    this.video.classList.remove('non-mirrored');
-
-    // Hide 3D avatar when using live camera
-    this.avatar3d.hide();
-
-    // Show guidance banner for active camera session
-    const banner = document.getElementById('hudGuidanceBanner');
-    if (banner) {
-      banner.style.display = 'flex';
-      banner.classList.remove('hidden');
-    }
-
-    try {
-      if (!this.pose) this.initMediaPipe();
-
-      if (typeof Camera !== 'undefined') {
-        this.camera = new Camera(this.video, {
-          onFrame: async () => {
-            if (this.isCameraRunning && this.pose) {
-              await this.pose.send({ image: this.video });
-            }
-          },
-          width: 1280,
-          height: 720
-        });
-        await this.camera.start();
-        // After start(), MediaPipe Camera sets video.srcObject — grab a reference now
-        // so stopStreams() can kill the hardware tracks even if the wrapper fails
-        if (this.video.srcObject) {
-          this._activeStream = this.video.srcObject;
-        }
-        this.isCameraRunning = true;
-        this.showToast('Camera active. Step back into full view.', '📷');
-      } else {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 1280, height: 720, facingMode: 'user' }
-        });
-        this._activeStream = stream;
-        this.video.srcObject = stream;
-        await this.video.play();
-        this.isCameraRunning = true;
-        this.runVideoLoop();
-        this.showToast('Camera active via WebRTC.', '📷');
-      }
-    } catch (err) {
-      console.error('Camera access error:', err);
-      this.showToast('Could not access camera. Try Demo Simulator or Video Upload.', '⚠️');
-      document.getElementById('viewportSplash').classList.remove('hidden');
-      document.getElementById('startCamBtn').style.display = 'inline-flex';
-      document.getElementById('stopCamBtn').style.display = 'none';
-    }
-  }
-
-  runVideoLoop() {
-    const step = async () => {
-      if (!this.isCameraRunning) return;
-      if (this.video.readyState >= 2 && this.pose) {
-        await this.pose.send({ image: this.video });
-      }
-      this.animFrameId = requestAnimationFrame(step);
-    };
-    this.animFrameId = requestAnimationFrame(step);
-  }
-
-  stopStreams(silent = false) {
-    // Set flags FIRST so any in-flight rAF callbacks bail immediately
-    this.isCameraRunning = false;
     this.isSimulationRunning = false;
-    this.isStreaming = false;
-
-    // Cancel any pending animation frame
-    if (this.animFrameId) {
-      cancelAnimationFrame(this.animFrameId);
-      this.animFrameId = null;
-    }
-
-    // --- Kill the MediaPipe Camera wrapper ---
-    if (this.camera) {
-      try { this.camera.stop(); } catch (e) {}
-      this.camera = null;
-    }
-
-    // --- Nuke the video element's srcObject tracks ---
-    if (this.video && this.video.srcObject) {
-      try {
-        this.video.srcObject.getTracks().forEach(t => { try { t.stop(); } catch(e){} });
-      } catch (e) {}
-      this.video.srcObject = null;
-    }
-
-    // --- Also stop any stored stream reference ---
-    if (this._activeStream) {
-      try {
-        this._activeStream.getTracks().forEach(t => { try { t.stop(); } catch(e){} });
-      } catch(e) {}
-      this._activeStream = null;
-    }
-
-    // Fully reset the video element
-    try {
-      this.video.pause();
-      this.video.src = '';
-      this.video.load();
-    } catch(e) {}
-
-    document.getElementById('startCamBtn').style.display = 'inline-flex';
-    document.getElementById('stopCamBtn').style.display = 'none';
-
-    // Revert 3D Sim button to normal state
-    const simBtn = document.getElementById('simBtn');
-    if (simBtn) {
-      simBtn.className = 'dock-btn demo';
-      simBtn.innerHTML = '<span class="btn-icon">🎮</span> 3D Sim';
-    }
-
-    document.getElementById('hudLiveDot').classList.remove('active');
-    document.getElementById('hudTrackingText').textContent = 'STANDBY';
-
-    // Clear both canvases
-    if (this.canvas) {
-      const ctx = this.canvas.getContext('2d');
-      if (ctx) ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    }
-
-    // Show splash screen again
-    const splash = document.getElementById('viewportSplash');
-    if (splash) splash.classList.remove('hidden');
-
-    // Hide 3D avatar & control docks
-    this.avatar3d.hide();
-    const dock = document.getElementById('avatarControlDock');
-    if (dock) dock.style.display = 'none';
-    const quickZoom = document.getElementById('avatarQuickZoomWidget');
-    if (quickZoom) quickZoom.style.display = 'none';
-    const navHint = document.getElementById('avatarNavHint');
-    if (navHint) navHint.style.display = 'none';
-    const tip = document.getElementById('avatarJointTooltip');
-    if (tip) tip.style.display = 'none';
-
-    // Only show post-exercise coach tip after exercise is done IF reps were performed
-    if (this.evaluator && this.evaluator.repCount > 0) {
-      this.showPostSessionCoachTip();
-    } else {
-      this.dismissCoachTip();
-    }
-
-    if (!silent) {
-      this.showToast('Stream stopped.', '⏹');
-    }
+    await this.cameraTracker.startCamera();
+    this.isCameraRunning = this.cameraTracker.isCameraRunning;
   }
 
   handleVideoUpload(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    this.stopStreams();
-    this.audio.init();
-
-    document.getElementById('viewportSplash').classList.add('hidden');
-    document.getElementById('startCamBtn').style.display = 'none';
-    document.getElementById('stopCamBtn').style.display = 'inline-flex';
-    this.video.classList.add('non-mirrored');
-
-    // Show guidance banner for active video session
-    const banner = document.getElementById('hudGuidanceBanner');
-    if (banner) {
-      banner.style.display = 'flex';
-      banner.classList.remove('hidden');
-    }
-
-    // Hide 3D avatar for video upload
-    this.avatar3d.hide();
-
-    const videoURL = URL.createObjectURL(file);
-    this.video.src = videoURL;
-    this.video.loop = true;
-    this.video.play().then(() => {
-      this.isCameraRunning = true;
-      this.runVideoLoop();
-      this.showToast(`Analyzing video: ${file.name}`, '📁');
-    }).catch(err => {
-      console.error('Video error:', err);
-      this.showToast('Could not play video.', '⚠️');
-    });
+    this.isSimulationRunning = false;
+    this.cameraTracker.handleVideoUpload(e);
+    this.isCameraRunning = this.cameraTracker.isCameraRunning;
   }
 
   startSimulation() {
-    this.stopStreams();
-    this.audio.init();
+    this.stopStreams(true);
+    if (this.audio) this.audio.init();
 
-    document.getElementById('viewportSplash').classList.add('hidden');
+    const splash = document.getElementById('viewportSplash');
+    if (splash) splash.classList.add('hidden');
 
-    // Leave Camera button as Camera (do NOT put STOP on camera)
-    document.getElementById('startCamBtn').style.display = 'inline-flex';
-    document.getElementById('stopCamBtn').style.display = 'none';
+    const startBtn = document.getElementById('startCamBtn');
+    if (startBtn) startBtn.style.display = 'inline-flex';
+    const stopBtn = document.getElementById('stopCamBtn');
+    if (stopBtn) stopBtn.style.display = 'none';
 
-    // Set the STOP icon on the 3D Sim button instead
     const simBtn = document.getElementById('simBtn');
     if (simBtn) {
       simBtn.className = 'dock-btn danger';
       simBtn.innerHTML = '<span class="btn-icon">⏹</span> Stop';
     }
 
-    // Ensure coach tip banner is completely hidden during 3D simulation
-    this.dismissCoachTip();
+    this.hudManager.dismissCoachTip();
 
     this.isSimulationRunning = true;
     this.canvas.width = 1280;
     this.canvas.height = 720;
 
-    // Show 3D Avatar & Interactive Control Dock
     this._init3DAvatar();
 
     const dock = document.getElementById('avatarControlDock');
@@ -1659,7 +430,6 @@ export class FlexAlignApp {
     this.showToast('3D Simulation running: Drag to rotate, Right-click to pan.', '🎮');
 
     const simLoop = () => {
-      // Guard: bail immediately if stop was requested
       if (!this.isSimulationRunning) {
         this.animFrameId = null;
         return;
@@ -1673,6 +443,75 @@ export class FlexAlignApp {
     };
 
     this.animFrameId = requestAnimationFrame(simLoop);
+  }
+
+  stopStreams(silent = false) {
+    this.isCameraRunning = false;
+    this.isSimulationRunning = false;
+    this.isStreaming = false;
+
+    if (this.animFrameId) {
+      cancelAnimationFrame(this.animFrameId);
+      this.animFrameId = null;
+    }
+
+    if (this.cameraTracker) {
+      this.cameraTracker.stopStreams();
+    }
+
+    const startBtn = document.getElementById('startCamBtn');
+    if (startBtn) startBtn.style.display = 'inline-flex';
+    const stopBtn = document.getElementById('stopCamBtn');
+    if (stopBtn) stopBtn.style.display = 'none';
+
+    const simBtn = document.getElementById('simBtn');
+    if (simBtn) {
+      simBtn.className = 'dock-btn demo';
+      simBtn.innerHTML = '<span class="btn-icon">🎮</span> 3D Sim';
+    }
+
+    const hudDot = document.getElementById('hudLiveDot');
+    if (hudDot) hudDot.classList.remove('active');
+    const hudText = document.getElementById('hudTrackingText');
+    if (hudText) hudText.textContent = 'STANDBY';
+
+    if (this.canvas) {
+      const ctx = this.canvas.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+
+    const splash = document.getElementById('viewportSplash');
+    if (splash) splash.classList.remove('hidden');
+
+    if (this.avatar3d) this.avatar3d.hide();
+    const dock = document.getElementById('avatarControlDock');
+    if (dock) dock.style.display = 'none';
+    const quickZoom = document.getElementById('avatarQuickZoomWidget');
+    if (quickZoom) quickZoom.style.display = 'none';
+    const navHint = document.getElementById('avatarNavHint');
+    if (navHint) navHint.style.display = 'none';
+    const tip = document.getElementById('avatarJointTooltip');
+    if (tip) tip.style.display = 'none';
+
+    if (this.evaluator && this.evaluator.repCount > 0) {
+      this.hudManager.showPostSessionCoachTip();
+    } else {
+      this.hudManager.dismissCoachTip();
+    }
+
+    if (!silent) {
+      this.showToast('Stream stopped.', '⏹');
+    }
+  }
+
+  toggleSimulation() {
+    if (this.isSimulationRunning) {
+      this.stopStreams();
+      const splash = document.getElementById('viewportSplash');
+      if (splash) splash.classList.remove('hidden');
+    } else {
+      this.startSimulation();
+    }
   }
 
   toggleSimFault() {
@@ -1758,7 +597,6 @@ export class FlexAlignApp {
       try {
         this.avatar3d.init(this.avatarCanvas);
 
-        // Raycasting Joint Tooltip Callbacks
         this.avatar3d.onJointHover = (jointData, event) => {
           const tooltip = document.getElementById('avatarJointTooltip');
           if (!tooltip) return;
@@ -1791,7 +629,6 @@ export class FlexAlignApp {
           this.showToast(`Inspecting ${jointData.label}: camera focused on joint.`, '🎯');
         };
 
-        // Sync view preset buttons when user manually drags camera orbit / pan
         this.avatar3d.onCameraManualChange = () => {
           ['btnViewFront', 'btnViewSide', 'btnViewIso', 'btnViewTop'].forEach(id => {
             const b = document.getElementById(id);
@@ -1806,90 +643,28 @@ export class FlexAlignApp {
     this.avatar3d.show();
   }
 
-  setAvatarView(preset) {
-    if (!this.avatar3d) return;
-    this.avatar3d.setViewPreset(preset);
-
-    const btnMap = {
-      front: 'btnViewFront',
-      side: 'btnViewSide',
-      iso: 'btnViewIso',
-      top: 'btnViewTop'
-    };
-
-    Object.keys(btnMap).forEach(k => {
-      const b = document.getElementById(btnMap[k]);
-      if (b) b.classList.toggle('active', k === preset);
-    });
-
-    const labels = { front: 'Front (0°)', side: 'Side Sagittal (90°)', iso: '3/4 Isometric', top: 'Top Overhead' };
-    this.showToast(`Camera view: ${labels[preset] || preset}`, '🎥');
-  }
-
-  panAvatar(deltaX, deltaY) {
-    if (this.avatar3d) {
-      this.avatar3d.pan(deltaX, deltaY);
-    }
-  }
-
-  zoomAvatar(factor) {
-    if (this.avatar3d) {
-      this.avatar3d.zoom(factor);
-    }
-  }
-
-  resetAvatarView() {
-    if (this.avatar3d) {
-      this.avatar3d.resetView();
-      this.setAvatarView('front');
-      this.showToast('Camera reset to center view.', '↺');
-    }
-  }
-
-  toggleAvatarAutoOrbit() {
-    if (!this.avatar3d) return;
-    const isOrbit = this.avatar3d.toggleAutoOrbit();
-    const btn = document.getElementById('btnAutoOrbit');
-    if (btn) btn.classList.toggle('active', isOrbit);
-    const quickBtn = document.getElementById('quickOrbitBtn');
-    if (quickBtn) quickBtn.classList.toggle('active', isOrbit);
-    this.showToast(isOrbit ? '360° Continuous Orbit ON' : 'Orbit Stopped', '🔄');
-  }
-
-  toggleAvatarXRay() {
-    if (!this.avatar3d) return;
-    const isXRay = this.avatar3d.toggleXRayMode();
-    const btn = document.getElementById('btnXRayMode');
-    if (btn) btn.classList.toggle('active', isXRay);
-    this.showToast(isXRay ? 'Holographic Skeletal X-Ray ON' : 'Standard Suit Shading ON', '⚡');
-  }
-
-  toggleSimulation() {
-    if (this.isSimulationRunning) {
-      this.stopStreams();
-      document.getElementById('viewportSplash').classList.remove('hidden');
-    } else {
-      this.startSimulation();
-    }
-  }
+  // ── Session Controls & Delegation ───────────────────────────────
 
   resetSession() {
     this.evaluator.resetAll();
     this.waveform.reset();
 
-    document.getElementById('repCountVal').textContent = '0';
-    document.getElementById('peakRomVal').textContent = '0°';
-    document.getElementById('faultCountVal').textContent = '0';
-    document.getElementById('secondaryMetricVal').textContent = '--';
-    document.getElementById('complianceScoreText').textContent = '100%';
-    document.getElementById('complianceFillBar').style.width = '100%';
-    document.getElementById('repHistoryBody').innerHTML = `
-      <tr id="emptyHistoryRow">
-        <td colspan="5" class="empty-table-msg">
-          Session reset. Perform repetitions to view analytics.
-        </td>
-      </tr>
-    `;
+    const rc = document.getElementById('repCountVal'); if (rc) rc.textContent = '0';
+    const pr = document.getElementById('peakRomVal'); if (pr) pr.textContent = '0°';
+    const fc = document.getElementById('faultCountVal'); if (fc) fc.textContent = '0';
+    const sm = document.getElementById('secondaryMetricVal'); if (sm) sm.textContent = '--';
+    const cs = document.getElementById('complianceScoreText'); if (cs) cs.textContent = '100%';
+    const cf = document.getElementById('complianceFillBar'); if (cf) cf.style.width = '100%';
+    const rh = document.getElementById('repHistoryBody');
+    if (rh) {
+      rh.innerHTML = `
+        <tr id="emptyHistoryRow">
+          <td colspan="5" class="empty-table-msg">
+            Session reset. Perform repetitions to view analytics.
+          </td>
+        </tr>
+      `;
+    }
     const countBadge = document.getElementById('historyCountBadge');
     if (countBadge) countBadge.textContent = '0';
 
@@ -1929,13 +704,55 @@ export class FlexAlignApp {
     this.showToast('Session exported to JSON file.', '📥');
   }
 
-  showToast(message, icon = 'ℹ️') {
-    const toast = document.getElementById('toastBanner');
-    document.getElementById('toastMsg').textContent = message;
-    document.getElementById('toastIcon').textContent = icon;
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 3200);
-  }
+  // Delegated HUD Manager methods
+  showToast(msg, icon) { return this.hudManager.showToast(msg, icon); }
+  showPostRepCoachTip(r) { return this.hudManager.showPostRepCoachTip(r); }
+  showPostSessionCoachTip() { return this.hudManager.showPostSessionCoachTip(); }
+  dismissCoachTip(e) { return this.hudManager.dismissCoachTip(e); }
+  setAvatarView(p) { return this.hudManager.setAvatarView(p); }
+  panAvatar(dx, dy) { return this.hudManager.panAvatar(dx, dy); }
+  zoomAvatar(f) { return this.hudManager.zoomAvatar(f); }
+  resetAvatarView() { return this.hudManager.resetAvatarView(); }
+  toggleAvatarAutoOrbit() { return this.hudManager.toggleAvatarAutoOrbit(); }
+  toggleAvatarXRay() { return this.hudManager.toggleAvatarXRay(); }
+
+  // Delegated Coach Drawer methods
+  setDashboardTab(t) { return this.coachDrawer.setDashboardTab(t); }
+  openCoachDrawer() { return this.coachDrawer.openCoachDrawer(); }
+  closeCoachDrawer() { return this.coachDrawer.closeCoachDrawer(); }
+  toggleCoachDrawer(f) { return this.coachDrawer.toggleCoachDrawer(f); }
+  toggleCoachSection() { return this.coachDrawer.toggleCoachSection(); }
+  handleVoiceWakeButtonClick() { return this.coachDrawer.handleVoiceWakeButtonClick(); }
+  handleMicButtonClick() { return this.coachDrawer.handleMicButtonClick(); }
+  toggleVoiceWake() { return this.coachDrawer.toggleVoiceWake(); }
+  sendChatMessage(t, v) { return this.coachDrawer.sendChatMessage(t, v); }
+  requestAutoAnalysis() { return this.coachDrawer.requestAutoAnalysis(); }
+  addChatBubble(r, t) { return this.coachDrawer.addChatBubble(r, t); }
+  showTypingIndicator(s) { return this.coachDrawer.showTypingIndicator(s); }
+  toggleVoice() { return this.coachDrawer.toggleVoice(); }
+  clearChat() { return this.coachDrawer.clearChat(); }
+  promptApiKey() { return this.coachDrawer.promptApiKey(); }
+  setVoiceRate(r) { return this.coachDrawer.setVoiceRate(r); }
+
+  // Delegated Interactive Call Overlay methods
+  toggleCallMode() { return this.callOverlay.toggleCallMode(); }
+  startCallMode() { return this.callOverlay.startCallMode(); }
+  endCallMode() { return this.callOverlay.endCallMode(); }
+  toggleCallMute() { return this.callOverlay.toggleCallMute(); }
+  interruptCoach() { return this.callOverlay.interruptCoach(); }
+
+  // Delegated AI Exercise Lab Modal methods
+  openAiExerciseModal() { return this.aiLabModal.openAiExerciseModal(); }
+  closeAiExerciseModal() { return this.aiLabModal.closeAiExerciseModal(); }
+  setAiLabTab(t) { return this.aiLabModal.setAiLabTab(t); }
+  syncModifyExerciseSelection() { return this.aiLabModal.syncModifyExerciseSelection(); }
+  applyAiPreset(p) { return this.aiLabModal.applyAiPreset(p); }
+  applyAiSuggestion(p) { return this.aiLabModal.applyAiSuggestion(p); }
+  generateOrModifyAiExercise() { return this.aiLabModal.generateOrModifyAiExercise(); }
+  renderAiExercisePreview(e) { return this.aiLabModal.renderAiExercisePreview(e); }
+  launchGeneratedExercise() { return this.aiLabModal.launchGeneratedExercise(); }
+
+  // ── Event Bindings & Bootloader ─────────────────────────────────
 
   handleUrlParams() {
     const params = new URLSearchParams(window.location.search);
@@ -1946,9 +763,9 @@ export class FlexAlignApp {
       this.canvas.width = 1280;
       this.canvas.height = 720;
       this.isSimulationRunning = true;
-      document.getElementById('viewportSplash').classList.add('hidden');
-      document.getElementById('startCamBtn').style.display = 'inline-flex';
-      document.getElementById('stopCamBtn').style.display = 'none';
+      const splash = document.getElementById('viewportSplash'); if (splash) splash.classList.add('hidden');
+      const startCam = document.getElementById('startCamBtn'); if (startCam) startCam.style.display = 'inline-flex';
+      const stopCam = document.getElementById('stopCamBtn'); if (stopCam) stopCam.style.display = 'none';
       const simBtn = document.getElementById('simBtn');
       if (simBtn) {
         simBtn.className = 'dock-btn danger';
@@ -1974,7 +791,6 @@ export class FlexAlignApp {
         const targetDeg = this.evaluator.mode === 'gym' ? 90 : this.evaluator.therapySafeThresholds[this.evaluator.currentExercise];
         this.waveform.render(this.evaluator.mode, targetDeg);
 
-        // Resize 3D avatar if visible
         if (this.avatar3d.isReady && this.isSimulationRunning) {
           const viewportEl = document.getElementById('viewportContainer');
           if (viewportEl) {
@@ -1984,7 +800,6 @@ export class FlexAlignApp {
       }, 100);
     });
 
-    // Keyboard shortcuts: 'F' for fault testing, 'Escape' to close AI Coach drawer
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.closeCoachDrawer();
@@ -1994,7 +809,6 @@ export class FlexAlignApp {
       }
     });
 
-    // Exercise dropdown explicit listener
     const exSelect = document.getElementById('exerciseSelect');
     if (exSelect) {
       const handleSelect = (e) => this.setExercise(e.target.value);
@@ -2002,7 +816,6 @@ export class FlexAlignApp {
       exSelect.addEventListener('input', handleSelect);
     }
 
-    // Explicit Button Bindings (ensures 100% click reliability across all browsers)
     const bindClick = (id, fn) => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('click', fn);
@@ -2023,25 +836,21 @@ export class FlexAlignApp {
     bindClick('tabBtnStandards', () => this.setDashboardTab('standards'));
     bindClick('tabBtnHistory', () => this.setDashboardTab('history'));
 
-    // Dedicated AI Coach Drawer Open/Close triggers
     bindClick('aiCoachNavBtn', () => this.toggleCoachDrawer());
     bindClick('aiCoachFabBtn', () => this.toggleCoachDrawer());
     bindClick('btnCloseCoachDrawer', () => this.closeCoachDrawer());
     bindClick('aiCoachBackdrop', () => this.closeCoachDrawer());
     bindClick('btnCloseGuidanceBanner', (e) => this.dismissCoachTip(e));
 
-    // Interactive Call Mode bindings
     bindClick('callModeNavBtn', () => this.toggleCallMode());
     bindClick('btnDrawerCallMode', () => this.toggleCallMode());
     bindClick('btnCallMute', () => this.toggleCallMute());
     bindClick('btnCallInterrupt', () => this.interruptCoach());
     bindClick('btnEndCall', () => this.endCallMode());
 
-    // Hands-free "Hey Coach" voice bindings
     bindClick('voiceWakeBtn', () => this.handleVoiceWakeButtonClick());
     bindClick('btnDrawerVoiceWake', () => this.toggleVoiceWake());
 
-    // AI Coach Chat & Voice Input bindings
     bindClick('btnDrawerMic', () => this.handleMicButtonClick());
     bindClick('btnSendChat', () => {
       const input = document.getElementById('aiChatInput');
@@ -2053,7 +862,6 @@ export class FlexAlignApp {
     bindClick('btnApiKey', () => this.promptApiKey());
     bindClick('btnToggleCoachSection', () => this.toggleCoachDrawer());
 
-    // Professional Voice Selector
     const voiceSelect = document.getElementById('aiVoiceSelect');
     if (voiceSelect) {
       voiceSelect.addEventListener('change', (e) => {
@@ -2065,7 +873,6 @@ export class FlexAlignApp {
       });
     }
 
-    // Voice Speed Selector
     const voiceSpeedSelect = document.getElementById('aiVoiceSpeedSelect');
     if (voiceSpeedSelect) {
       voiceSpeedSelect.addEventListener('change', (e) => {
@@ -2073,7 +880,6 @@ export class FlexAlignApp {
       });
     }
 
-    // Enter key on chat input
     const chatInput = document.getElementById('aiChatInput');
     if (chatInput) {
       chatInput.addEventListener('keydown', (e) => {
@@ -2084,468 +890,11 @@ export class FlexAlignApp {
       });
     }
 
-    // Bind reset/export by data-action for any dynamically created buttons too
     document.querySelectorAll('[data-action="reset"]').forEach(el => el.addEventListener('click', () => this.resetSession()));
     document.querySelectorAll('[data-action="export"]').forEach(el => el.addEventListener('click', () => this.exportData()));
 
-    // Delegate stopCamBtn onclick removal — rely purely on JS binding
     const stopCamBtn = document.getElementById('stopCamBtn');
     if (stopCamBtn) stopCamBtn.removeAttribute('onclick');
-  }
-
-  // ── AI Exercise Lab Modal (Under 3D Sim) ──────────────────────
-
-  openAiExerciseModal() {
-    const modal = document.getElementById('aiExerciseModal');
-    const labBtn = document.getElementById('btnOpenAiLab');
-    if (!modal) return;
-
-    modal.classList.remove('closing');
-    modal.style.display = 'flex';
-    if (labBtn) labBtn.classList.add('active');
-
-    // Default to 'add' mode or keep current
-    this.setAiLabTab(this.aiLabTab || 'add');
-
-    // Focus input
-    const promptInput = document.getElementById('aiExercisePrompt');
-    if (promptInput) {
-      setTimeout(() => promptInput.focus(), 150);
-    }
-  }
-
-  closeAiExerciseModal() {
-    const modal = document.getElementById('aiExerciseModal');
-    const labBtn = document.getElementById('btnOpenAiLab');
-    if (!modal) return;
-
-    modal.classList.add('closing');
-    if (labBtn) labBtn.classList.remove('active');
-
-    setTimeout(() => {
-      if (modal.classList.contains('closing')) {
-        modal.style.display = 'none';
-        modal.classList.remove('closing');
-      }
-    }, 250);
-  }
-
-  setAiLabTab(tab) {
-    this.aiLabTab = tab;
-    const tabAdd = document.getElementById('tabAddExercise');
-    const tabModify = document.getElementById('tabModifyExercise');
-    const promptLabel = document.getElementById('aiPromptLabel');
-    const promptInput = document.getElementById('aiExercisePrompt');
-    const submitBtnText = document.getElementById('btnAiGenerateText');
-    const modifyRow = document.getElementById('aiModifyExerciseSelectRow');
-    const modifySelect = document.getElementById('aiModifyExerciseSelect');
-
-    if (tabAdd) tabAdd.classList.toggle('active', tab === 'add');
-    if (tabModify) tabModify.classList.toggle('active', tab === 'modify');
-
-    if (tab === 'modify') {
-      if (modifyRow) modifyRow.style.display = 'block';
-
-      // Populate exercise selector with all gym, pt, and custom exercises
-      if (modifySelect) {
-        modifySelect.innerHTML = '';
-
-        const gymGroup = document.createElement('optgroup');
-        gymGroup.label = '🏋️ Fitness / Strength Exercises';
-        Object.keys(GYM_EXERCISES).forEach(id => {
-          const opt = document.createElement('option');
-          opt.value = id;
-          opt.textContent = GYM_EXERCISES[id].name;
-          gymGroup.appendChild(opt);
-        });
-        modifySelect.appendChild(gymGroup);
-
-        const ptGroup = document.createElement('optgroup');
-        ptGroup.label = '🩺 Physical Therapy Exercises';
-        Object.keys(PT_EXERCISES).forEach(id => {
-          const opt = document.createElement('option');
-          opt.value = id;
-          opt.textContent = PT_EXERCISES[id].name;
-          ptGroup.appendChild(opt);
-        });
-        modifySelect.appendChild(ptGroup);
-
-        const customKeys = Object.keys(CUSTOM_EXERCISES).filter(id => !GYM_EXERCISES[id] && !PT_EXERCISES[id]);
-        if (customKeys.length > 0) {
-          const customGroup = document.createElement('optgroup');
-          customGroup.label = '✨ Custom Exercises';
-          customKeys.forEach(id => {
-            const opt = document.createElement('option');
-            opt.value = id;
-            opt.textContent = `✨ ${CUSTOM_EXERCISES[id].name}`;
-            customGroup.appendChild(opt);
-          });
-          modifySelect.appendChild(customGroup);
-        }
-
-        // Set default selection to exerciseToModify or evaluator.currentExercise
-        const targetId = this.exerciseToModify || this.evaluator.currentExercise;
-        if (targetId && modifySelect.querySelector(`option[value="${targetId}"]`)) {
-          modifySelect.value = targetId;
-        }
-
-        if (!modifySelect._hasChangeListener) {
-          modifySelect._hasChangeListener = true;
-          modifySelect.addEventListener('change', () => {
-            this.exerciseToModify = modifySelect.value;
-            this.syncModifyExerciseSelection();
-          });
-        }
-      }
-
-      this.exerciseToModify = (modifySelect && modifySelect.value) ? modifySelect.value : (this.exerciseToModify || this.evaluator.currentExercise);
-      this.syncModifyExerciseSelection();
-
-      if (submitBtnText) submitBtnText.textContent = 'Modify with Gemini';
-    } else {
-      if (modifyRow) modifyRow.style.display = 'none';
-      if (promptLabel) promptLabel.textContent = 'Describe Exercise or Biomechanical Adjustment:';
-      if (promptInput && promptInput.value.includes('Adjust target angle to 80°')) {
-        promptInput.value = '';
-      }
-      if (promptInput) promptInput.placeholder = 'e.g., Create a Romanian Deadlift focusing on hip hinge and hamstring depth, or Bulgarian Split Squats with vertical shin...';
-      if (submitBtnText) submitBtnText.textContent = 'Generate with Gemini';
-    }
-  }
-
-  syncModifyExerciseSelection() {
-    const modifySelect = document.getElementById('aiModifyExerciseSelect');
-    const selectedId = modifySelect ? modifySelect.value : (this.exerciseToModify || this.evaluator.currentExercise);
-    const ex = getExerciseDefinition(selectedId) || GYM_EXERCISES[selectedId] || PT_EXERCISES[selectedId] || CUSTOM_EXERCISES[selectedId];
-    if (!ex) return;
-
-    const promptLabel = document.getElementById('aiPromptLabel');
-    const promptInput = document.getElementById('aiExercisePrompt');
-    const jointSelect = document.getElementById('aiTargetJoint');
-    const modeSelect = document.getElementById('aiTargetMode');
-
-    if (promptLabel) promptLabel.textContent = `Modify Biomechanics for "${ex.name}":`;
-    if (promptInput) {
-      promptInput.placeholder = `e.g. Set target depth to 80 degrees, make fault sensitivity stricter, or change focus to rehab...`;
-      promptInput.value = `Adjust target angle to 80° with stricter lockout form for ${ex.name}`;
-    }
-
-    if (jointSelect && ex.jointLabel) jointSelect.value = ex.jointLabel;
-    if (modeSelect && ex.mode) modeSelect.value = ex.mode;
-  }
-
-  applyAiPreset(presetKey) {
-    const promptInput = document.getElementById('aiExercisePrompt');
-    const jointSelect = document.getElementById('aiTargetJoint');
-    const modeSelect = document.getElementById('aiTargetMode');
-
-    this.setAiLabTab('add');
-
-    const presets = {
-      goblet_squat: {
-        prompt: 'Goblet Squat: Anterior anterior load variation with dumbbell or kettlebell cupped at sternum, elbows tracking inside knees at 85° depth, vertical spine.',
-        joint: 'KNEE',
-        mode: 'gym'
-      },
-      sumo_squat: {
-        prompt: 'Sumo Squat: Extra-wide stance (1.5x shoulders) with toes flared 45°, deep hip crease to 90°, knees tracking over toes.',
-        joint: 'KNEE',
-        mode: 'gym'
-      },
-      arnold_press: {
-        prompt: 'Arnold Press: Deltoid complex variation starting with palms facing chest, rotating 180° outward during ascent into full overhead lockout.',
-        joint: 'ELBOW',
-        mode: 'gym'
-      },
-      scaption: {
-        prompt: 'Scaption Full-Can: Elevation in 30° scapular plane with thumbs pointed up, safe subacromial space clearance up to 90° ROM.',
-        joint: 'SHOULDER',
-        mode: 'pt'
-      },
-      rdl: {
-        prompt: 'Romanian Deadlift (RDL): Biomechanical hip hinge targeting hamstrings & glutes. Deep hinge to 75° with soft knees and flat spine.',
-        joint: 'HIP',
-        mode: 'gym'
-      },
-      split_squat: {
-        prompt: 'Bulgarian Split Squat: Unilateral quad & glute hypertrophy. Lead knee descends to 85° depth while keeping shin vertical.',
-        joint: 'KNEE',
-        mode: 'gym'
-      },
-      pushup: {
-        prompt: 'Standard Push-Up: Chest to floor press with 85° elbow depth, tight 45° elbow tuck, and anti-extension plank core.',
-        joint: 'ELBOW',
-        mode: 'gym'
-      },
-      wall_angels: {
-        prompt: 'Wall Angels: Scapular retraction and thoracic mobility rehab with safe abduction reach arc up to 150° without lumbar arching.',
-        joint: 'SHOULDER',
-        mode: 'pt'
-      },
-      lunges: {
-        prompt: 'Walking Lunges: Dynamic unilateral knee flexion to 90° with upright posture and controlled deceleration.',
-        joint: 'KNEE',
-        mode: 'gym'
-      },
-      bird_dog: {
-        prompt: 'Bird Dog Quadruped Reach: Lumbar core stabilization (McGill Big 3). Reach opposite arm and leg parallel to floor without pelvic twist.',
-        joint: 'HIP',
-        mode: 'pt'
-      },
-      cat_cow: {
-        prompt: 'Cat-Cow Spinal Segmentation: Cervical, thoracic, and lumbar segmentation arc from all-fours.',
-        joint: 'HIP',
-        mode: 'pt'
-      },
-      glute_bridge: {
-        prompt: 'Glute Bridge: Supine hip extension driving through heels to 175° lockout with glute contraction.',
-        joint: 'HIP',
-        mode: 'pt'
-      },
-      mckenzie: {
-        prompt: 'McKenzie Extension Press-Up: Prone lumbar spine decompression press-up while keeping pelvis pinned to floor.',
-        joint: 'ELBOW',
-        mode: 'pt'
-      },
-      row: {
-        prompt: 'Bent-Over Barbell Row: 45° hinged torso pulling elbows past ribcage with scapular retraction.',
-        joint: 'ELBOW',
-        mode: 'gym'
-      }
-    };
-
-    const preset = presets[presetKey];
-    if (preset) {
-      if (promptInput) promptInput.value = preset.prompt;
-      if (jointSelect) jointSelect.value = preset.joint;
-      if (modeSelect) modeSelect.value = preset.mode;
-      // Auto-generate for instant gratification
-      this.generateOrModifyAiExercise();
-    }
-  }
-
-  applyAiSuggestion(promptText) {
-    const promptInput = document.getElementById('aiExercisePrompt');
-    if (promptInput) {
-      promptInput.value = promptText;
-    }
-    const suggestionsCard = document.getElementById('aiExerciseSuggestionsCard');
-    if (suggestionsCard) suggestionsCard.style.display = 'none';
-
-    this.setAiLabTab('add');
-    this.generateOrModifyAiExercise();
-  }
-
-  async generateOrModifyAiExercise() {
-    const promptInput = document.getElementById('aiExercisePrompt');
-    const jointSelect = document.getElementById('aiTargetJoint');
-    const modeSelect = document.getElementById('aiTargetMode');
-    const submitBtn = document.getElementById('btnAiGenerate');
-    const submitIcon = document.getElementById('btnAiGenerateIcon');
-    const submitText = document.getElementById('btnAiGenerateText');
-
-    const userPrompt = promptInput ? promptInput.value.trim() : '';
-    if (!userPrompt) {
-      this.showToast('Please type an exercise description or select a preset chip', '⚠️');
-      if (promptInput) promptInput.focus();
-      return;
-    }
-
-    const selectedMode = modeSelect ? modeSelect.value : 'gym';
-    const selectedJoint = jointSelect ? jointSelect.value : 'AUTO';
-
-    // ─────────────────────────────────────────────────────────────
-    // FAST PATH: Instant 0ms Synthesis for "Add" tab
-    // Enables any exercise input to immediately produce 3D motion without network lag!
-    // ─────────────────────────────────────────────────────────────
-    if (this.aiLabTab === 'add') {
-      const instantEx = synthesizeExerciseFromQuery(userPrompt, selectedMode);
-      if (instantEx) {
-        if (selectedJoint !== 'AUTO') {
-          instantEx.jointLabel = selectedJoint;
-        }
-        instantEx.mode = selectedMode;
-        this.currentGeneratedExercise = instantEx;
-        registerExercise(instantEx);
-        this.renderAiExercisePreview(instantEx);
-
-        const suggestionsCard = document.getElementById('aiExerciseSuggestionsCard');
-        if (suggestionsCard) suggestionsCard.style.display = 'none';
-
-        if (this.audio) this.audio.playRepSuccess();
-        this.showToast(`AI Lab: "${instantEx.name}" ready instantly! ⚡`, '🚀');
-
-        if (submitBtn) submitBtn.classList.remove('loading');
-        if (submitIcon) submitIcon.textContent = '⚡';
-        if (submitText) submitText.textContent = 'Generate with Gemini';
-        return;
-      }
-    }
-
-    // Loading State
-    if (submitBtn) submitBtn.classList.add('loading');
-    if (submitIcon) submitIcon.textContent = '⏳';
-    if (submitText) submitText.textContent = this.aiLabTab === 'modify' ? 'Gemini Modifying...' : 'Gemini Generating...';
-
-    try {
-      let result;
-      if (this.aiLabTab === 'modify') {
-        const modifySelect = document.getElementById('aiModifyExerciseSelect');
-        const currentExId = (modifySelect && modifySelect.value) ? modifySelect.value : (this.exerciseToModify || this.evaluator.currentExercise);
-        const currentEx = getExerciseDefinition(currentExId) || GYM_EXERCISES[currentExId] || PT_EXERCISES[currentExId] || CUSTOM_EXERCISES[currentExId];
-        result = await this.gemini.modifyExercise(currentEx, userPrompt);
-      } else {
-        result = await this.gemini.generateExercise(userPrompt, selectedMode);
-      }
-
-      // Handle Unrecognized / Ambiguous Exercise with Suggestion Chips
-      if (result && result.isUnrecognized) {
-        const previewCard = document.getElementById('aiExercisePreviewCard');
-        if (previewCard) previewCard.style.display = 'none';
-
-        const suggestionsCard = document.getElementById('aiExerciseSuggestionsCard');
-        const suggestionMsg = document.getElementById('aiSuggestionMsg');
-        const pillsContainer = document.getElementById('aiSuggestionPills');
-
-        if (suggestionsCard && pillsContainer) {
-          if (suggestionMsg) {
-            suggestionMsg.textContent = result.message || `We couldn't recognize "${userPrompt}". Did you mean one of these exercises?`;
-          }
-          pillsContainer.innerHTML = '';
-          const suggestions = (result.suggestions && result.suggestions.length > 0)
-            ? result.suggestions
-            : [
-                { name: 'Romanian Deadlift (RDL)', prompt: 'Romanian Deadlift hip hinge with dumbbell or barbell' },
-                { name: 'Bulgarian Split Squat', prompt: 'Bulgarian Split Squat knee flexion and glute drive' },
-                { name: 'Standard Push-Up', prompt: 'Standard Push-Up chest to floor with 45-degree elbow tuck' },
-                { name: 'Bird Dog Reach', prompt: 'Bird Dog quadruped reach for lumbar spine stabilization' }
-              ];
-
-          suggestions.forEach(s => {
-            const pill = document.createElement('button');
-            pill.type = 'button';
-            pill.className = 'ai-suggestion-pill';
-            pill.innerHTML = `<span>✨</span> <strong>${s.name}</strong>`;
-            pill.title = s.prompt || s.name;
-            pill.addEventListener('click', () => {
-              this.applyAiSuggestion(s.prompt || s.name);
-            });
-            pillsContainer.appendChild(pill);
-          });
-
-          suggestionsCard.style.display = 'block';
-          suggestionsCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-        this.showToast('Unrecognized exercise: select a suggestion chip', '💡');
-        return;
-      }
-
-      if (result && result.exercise) {
-        const suggestionsCard = document.getElementById('aiExerciseSuggestionsCard');
-        if (suggestionsCard) suggestionsCard.style.display = 'none';
-
-        const ex = result.exercise;
-
-        // Apply explicit joint if user selected one instead of AUTO
-        if (selectedJoint !== 'AUTO') {
-          ex.jointLabel = selectedJoint;
-        }
-        ex.mode = selectedMode;
-
-        this.currentGeneratedExercise = ex;
-        registerExercise(ex);
-        this.renderAiExercisePreview(ex);
-        this.showToast(`AI Lab: "${ex.name}" updated successfully! ✨`, '🚀');
-
-        if (this.audio) this.audio.playRepSuccess();
-      } else {
-        this.showToast('Could not generate exercise. Please try again.', '⚠️');
-      }
-    } catch (err) {
-      console.error('Error generating AI exercise:', err);
-      this.showToast('AI Lab error. Using biomechanical engine.', '⚠️');
-    } finally {
-      if (submitBtn) submitBtn.classList.remove('loading');
-      if (submitIcon) submitIcon.textContent = '⚡';
-      if (submitText) submitText.textContent = this.aiLabTab === 'modify' ? 'Modify with Gemini' : 'Generate with Gemini';
-    }
-  }
-
-  renderAiExercisePreview(ex) {
-    const previewCard = document.getElementById('aiExercisePreviewCard');
-    if (!previewCard) return;
-
-    document.getElementById('aiPreviewName').textContent = ex.name;
-    document.getElementById('aiPreviewCategory').textContent = ex.category || (ex.mode === 'pt' ? 'Physical Therapy' : 'Athletic Kinematics');
-    
-    const modeTag = document.getElementById('aiPreviewModeTag');
-    if (modeTag) {
-      modeTag.textContent = ex.mode === 'pt' ? 'THERAPY MODE' : 'GYM MODE';
-      modeTag.className = `preview-mode-tag ${ex.mode === 'pt' ? 'pt' : 'gym'}`;
-    }
-
-    document.getElementById('aiPreviewJoint').textContent = `${ex.jointLabel || 'KNEE'} (${ex.jointTitle || 'Kinematics'})`;
-    document.getElementById('aiPreviewTarget').textContent = ex.targetCriterion || `≤ ${ex.defaultTarget || 90}°`;
-    document.getElementById('aiPreviewLockout').textContent = ex.lockoutCriterion || '> 160°';
-    document.getElementById('aiPreviewFault').textContent = ex.faultMessage || '⚠️ Biomechanical Misalignment';
-
-    const motionEl = document.getElementById('aiPreviewMotion');
-    if (motionEl && ex.motionProfile) {
-      const mp = ex.motionProfile;
-      const typeLabel = (mp.movementType || 'Dynamic').replace(/_/g, ' ');
-      motionEl.textContent = `${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)} (${mp.startAngle !== undefined ? mp.startAngle : 165}° ➔ ${mp.targetAngle !== undefined ? mp.targetAngle : (ex.defaultTarget || 80)}°)`;
-    }
-
-    const tipBox = document.getElementById('aiPreviewTip');
-    if (tipBox) {
-      tipBox.innerHTML = ex.tip || `⚡ <strong>Biomechanical Standard:</strong> Smooth cadence and full active excursion.`;
-    }
-
-    previewCard.style.display = 'flex';
-    previewCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-
-  launchGeneratedExercise() {
-    if (!this.currentGeneratedExercise) {
-      this.showToast('No exercise generated to launch', '⚠️');
-      return;
-    }
-
-    const ex = this.currentGeneratedExercise;
-    this.exerciseToModify = ex.id;
-    registerExercise(ex);
-
-    // If exercise belongs to a different mode, switch to that mode
-    if (ex.mode !== this.evaluator.mode) {
-      this.setMode(ex.mode);
-    } else {
-      // Repopulate dropdown
-      const selectEl = document.getElementById('exerciseSelect');
-      const allEx = getAllExercisesForMode(ex.mode);
-      if (selectEl) {
-        selectEl.innerHTML = '';
-        Object.keys(allEx).forEach(key => {
-          const opt = document.createElement('option');
-          opt.value = key;
-          const prefix = allEx[key].isCustom ? '✨ ' : '';
-          opt.textContent = `${prefix}${ex.mode === 'gym' ? '🏋️' : '🩺'} ${allEx[key].name}`;
-          selectEl.appendChild(opt);
-        });
-      }
-    }
-
-    // Select the new exercise
-    this.setExercise(ex.id);
-
-    // Close the modal with animation
-    this.closeAiExerciseModal();
-
-    // Start 3D simulation so user immediately observes the exercise kinematics in action!
-    if (!this.isSimulationRunning) {
-      this.startSimulation();
-    }
-
-    this.showToast(`🚀 Now running "${ex.name}" in 3D Simulation!`, '✨');
   }
 }
 
@@ -2569,7 +918,7 @@ function bootApp() {
 }
 
 if (document.readyState === 'loading') {
-  window.addEventListener('DOMContentLoaded', bootApp);
+  document.addEventListener('DOMContentLoaded', bootApp);
 } else {
   bootApp();
 }
